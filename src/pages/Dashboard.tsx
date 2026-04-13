@@ -54,9 +54,6 @@ export default function Dashboard() {
     </div>
   );
 }
-
-const stats = [
-  { title: "Agentes Ativos", value: "3", icon: Bot, change: "+1 este mês" },
   { title: "Mensagens Hoje", value: "142", icon: MessageSquare, change: "+23% vs ontem" },
   { title: "Clientes Atendidos", value: "58", icon: Users, change: "+12 esta semana" },
   { title: "Taxa de Resolução", value: "87%", icon: TrendingUp, change: "+5% vs mês anterior" },
