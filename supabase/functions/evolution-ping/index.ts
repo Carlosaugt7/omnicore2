@@ -23,9 +23,8 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) return json({ error: "Unauthorized" }, 401);
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return json({ error: "Unauthorized" }, 401);
 
     const body = await req.json();
     const { evolutionUrl, evolutionApiKey } = body;
