@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Eye, EyeOff, Wifi, WifiOff, Play, Save, QrCode, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Wifi, WifiOff, Play, Save, QrCode, Loader2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -85,6 +85,8 @@ export default function SettingsPage() {
   const [triggeringManual, setTriggeringManual] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [creatingInstance, setCreatingInstance] = useState(false);
+  const [pollingActive, setPollingActive] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recentLogs, setRecentLogs] = useState<ReminderLog[]>([]);
   const [sampleClient, setSampleClient] = useState<{ name: string; plan: string; value: string; due_date: string; server: string } | null>(null);
 
@@ -135,6 +137,39 @@ export default function SettingsPage() {
       });
   }, [user]);
 
+  // Polling: check connection status every 5s while QR is displayed
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setPollingActive(false);
+  }, []);
+
+  const startPolling = useCallback(() => {
+    stopPolling();
+    setPollingActive(true);
+    pollingRef.current = setInterval(async () => {
+      try {
+        const result = await api.invokeFunction('evolution-status');
+        if (result.connected) {
+          setConnectionStatus('connected');
+          setConnectionPhone(result.phone || '');
+          setQrCode(null);
+          stopPolling();
+          toast.success('✅ WhatsApp conectado com sucesso!');
+        }
+      } catch {
+        // silently retry
+      }
+    }, 5000);
+  }, [stopPolling]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
   const handleSave = async () => {
     if (!user) return;
     setLoading(true);
@@ -177,9 +212,15 @@ export default function SettingsPage() {
       } else {
         if (result.qrcode) {
           setQrCode(result.qrcode);
-          toast.success(result.message || 'QR Code gerado! Escaneie com seu celular.');
+          setConnectionStatus('disconnected');
+          toast.success(result.message || 'Escaneie o QR Code com seu WhatsApp!');
+          startPolling();
         } else {
           toast.info(result.message || 'Instância criada, mas sem QR Code.');
+        }
+        // Update instance name in local state if auto-generated
+        if (result.instanceName && result.instanceName !== settings.evolution_instance) {
+          setSettings(s => ({ ...s, evolution_instance: result.instanceName }));
         }
       }
     } catch (err: unknown) {
@@ -193,8 +234,10 @@ export default function SettingsPage() {
       const result = await api.invokeFunction('evolution-qrcode');
       if (result.qrcode) {
         setQrCode(result.qrcode);
+        if (!pollingActive) startPolling();
       } else {
-        toast.error('QR Code não disponível.');
+        // Maybe already connected
+        await handleTestConnection();
       }
     } catch {
       toast.error('Erro ao atualizar QR Code.');
@@ -363,29 +406,50 @@ export default function SettingsPage() {
                 {testingConnection ? 'Testando...' : 'Testar Conexão'}
               </Button>
 
-              <Button onClick={handleCreateInstance} disabled={creatingInstance} variant="default">
+              <Button onClick={handleCreateInstance} disabled={creatingInstance || connectionStatus === 'connected'} variant="default">
                 {creatingInstance ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <QrCode className="h-4 w-4 mr-2" />}
                 {creatingInstance ? 'Criando...' : 'Conectar WhatsApp'}
               </Button>
 
+              {/* Connected success state */}
+              {connectionStatus === 'connected' && (
+                <div className="mt-4 p-4 border border-green-500/30 rounded-lg bg-green-500/5 flex items-center gap-3">
+                  <CheckCircle2 className="h-8 w-8 text-green-500" />
+                  <div>
+                    <p className="font-medium text-green-600 dark:text-green-400">WhatsApp Conectado!</p>
+                    <p className="text-sm text-muted-foreground">Número: {connectionPhone || 'Detectando...'}</p>
+                  </div>
+                </div>
+              )}
+
               {/* QR Code Display */}
-              {qrCode && (
-                <div className="mt-4 p-4 border rounded-lg bg-white dark:bg-gray-900 flex flex-col items-center gap-3">
-                  <p className="text-sm font-medium">Escaneie o QR Code com seu WhatsApp:</p>
+              {qrCode && connectionStatus !== 'connected' && (
+                <div className="mt-4 p-6 border-2 border-dashed border-primary/30 rounded-lg bg-card flex flex-col items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <QrCode className="h-5 w-5 text-primary" />
+                    <p className="text-sm font-semibold">Escaneie o QR Code com seu WhatsApp</p>
+                  </div>
                   <img
                     src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
                     alt="QR Code WhatsApp"
-                    className="w-64 h-64 border rounded"
+                    className="w-72 h-72 border rounded-lg shadow-sm"
                   />
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleRefreshQR}>
-                      Atualizar QR Code
+                    <Button variant="outline" size="sm" onClick={handleRefreshQR} disabled={pollingActive && false}>
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Novo QR Code
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleTestConnection}>
                       Verificar Conexão
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">O QR Code expira em ~60 segundos</p>
+                  {pollingActive && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Aguardando conexão... verificando a cada 5s
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">O QR Code expira em ~60s. Clique "Novo QR Code" se expirar.</p>
                 </div>
               )}
             </CardContent>
