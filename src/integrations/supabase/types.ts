@@ -14,7 +14,270 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clients: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string
+          plan: string | null
+          server: string | null
+          status: string
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone: string
+          plan?: string | null
+          server?: string | null
+          status?: string
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string
+          plan?: string | null
+          server?: string | null
+          status?: string
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: []
+      }
+      mac_addresses: {
+        Row: {
+          activation_url: string | null
+          client_id: string | null
+          client_name: string | null
+          created_at: string
+          id: string
+          key: string | null
+          mac: string
+          server: string | null
+          user_id: string
+        }
+        Insert: {
+          activation_url?: string | null
+          client_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          id?: string
+          key?: string | null
+          mac: string
+          server?: string | null
+          user_id: string
+        }
+        Update: {
+          activation_url?: string | null
+          client_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          id?: string
+          key?: string | null
+          mac?: string
+          server?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_addresses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reminder_logs: {
+        Row: {
+          client_id: string | null
+          client_name: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          message_id: string | null
+          phone: string | null
+          sent_at: string | null
+          status: string | null
+          template_type: string | null
+          user_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          phone?: string | null
+          sent_at?: string | null
+          status?: string | null
+          template_type?: string | null
+          user_id: string
+        }
+        Update: {
+          client_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          phone?: string | null
+          sent_at?: string | null
+          status?: string | null
+          template_type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminder_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          created_at: string
+          id: string
+          plan_name: string
+          server_name: string
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          plan_name: string
+          server_name: string
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          plan_name?: string
+          server_name?: string
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          created_at: string
+          evolution_api_key: string | null
+          evolution_api_url: string | null
+          evolution_instance: string | null
+          id: string
+          pix_key: string | null
+          pix_key_type: string | null
+          reminder_time: string | null
+          template_before: string | null
+          template_overdue: string | null
+          template_today: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          evolution_instance?: string | null
+          id?: string
+          pix_key?: string | null
+          pix_key_type?: string | null
+          reminder_time?: string | null
+          template_before?: string | null
+          template_overdue?: string | null
+          template_today?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          evolution_instance?: string | null
+          id?: string
+          pix_key?: string | null
+          pix_key_type?: string | null
+          reminder_time?: string | null
+          template_before?: string | null
+          template_overdue?: string | null
+          template_today?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          client_id: string | null
+          client_name: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          paid_at: string | null
+          plan: string | null
+          status: string | null
+          type: string | null
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          client_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          paid_at?: string | null
+          plan?: string | null
+          status?: string | null
+          type?: string | null
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          client_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          paid_at?: string | null
+          plan?: string | null
+          status?: string | null
+          type?: string | null
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
