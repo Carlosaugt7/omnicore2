@@ -1,20 +1,16 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Outlet, useLocation } from "react-router-dom";
-import { Bell, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronRight } from "lucide-react";
 
 const breadcrumbMap: Record<string, string> = {
   dashboard: "Dashboard",
-  agents: "Agentes",
-  new: "Novo",
-  edit: "Editar",
   clients: "Clientes",
-  knowledge: "Conhecimento",
-  conversations: "Conversas",
-  analytics: "Analytics",
+  services: "Serviços",
+  financial: "Financeiro",
+  reminders: "Lembretes",
+  "mac-addresses": "MAC Address",
   settings: "Configurações",
-  billing: "Assinatura",
 };
 
 export function DashboardLayout() {
@@ -26,7 +22,7 @@ export function DashboardLayout() {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center justify-between border-b bg-background px-4 shrink-0">
+          <header className="h-14 flex items-center border-b bg-background px-4 shrink-0">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="text-muted-foreground" />
               <nav className="flex items-center text-sm text-muted-foreground">
@@ -39,11 +35,6 @@ export function DashboardLayout() {
                   </span>
                 ))}
               </nav>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="text-muted-foreground">
-                <Bell className="h-4 w-4" />
-              </Button>
             </div>
           </header>
           <main className="flex-1 p-6 overflow-auto">
