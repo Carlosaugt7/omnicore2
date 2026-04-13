@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
@@ -11,7 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Eye, EyeOff, Wifi, WifiOff, Play, Save, QrCode, Loader2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Play, Save } from 'lucide-react';
+import EvolutionSetupWizard from '@/components/EvolutionSetupWizard';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -46,6 +47,8 @@ interface Settings {
   evolution_api_url: string;
   evolution_api_key: string;
   evolution_instance: string;
+  n8n_url: string;
+  n8n_webhook_url: string;
   pix_key: string;
   pix_key_type: string;
   pix_beneficiary: string;
@@ -62,6 +65,8 @@ const INITIAL_SETTINGS: Settings = {
   evolution_api_url: '',
   evolution_api_key: '',
   evolution_instance: '',
+  n8n_url: '',
+  n8n_webhook_url: '',
   pix_key: '',
   pix_key_type: 'cpf',
   pix_beneficiary: '',
@@ -78,15 +83,7 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings>(INITIAL_SETTINGS);
   const [loading, setLoading] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown');
-  const [connectionPhone, setConnectionPhone] = useState('');
-  const [testingConnection, setTestingConnection] = useState(false);
   const [triggeringManual, setTriggeringManual] = useState(false);
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [creatingInstance, setCreatingInstance] = useState(false);
-  const [pollingActive, setPollingActive] = useState(false);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recentLogs, setRecentLogs] = useState<ReminderLog[]>([]);
   const [sampleClient, setSampleClient] = useState<{ name: string; plan: string; value: string; due_date: string; server: string } | null>(null);
 
@@ -101,6 +98,8 @@ export default function SettingsPage() {
             evolution_api_url: data.evolution_api_url || '',
             evolution_api_key: data.evolution_api_key || '',
             evolution_instance: data.evolution_instance || '',
+            n8n_url: (data as Record<string, unknown>).n8n_url as string || '',
+            n8n_webhook_url: (data as Record<string, unknown>).n8n_webhook_url as string || '',
             pix_key: data.pix_key || '',
             pix_key_type: data.pix_key_type || 'cpf',
             pix_beneficiary: data.pix_beneficiary || '',
@@ -137,39 +136,6 @@ export default function SettingsPage() {
       });
   }, [user]);
 
-  // Polling: check connection status every 5s while QR is displayed
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-    setPollingActive(false);
-  }, []);
-
-  const startPolling = useCallback(() => {
-    stopPolling();
-    setPollingActive(true);
-    pollingRef.current = setInterval(async () => {
-      try {
-        const result = await api.invokeFunction('evolution-status');
-        if (result.connected) {
-          setConnectionStatus('connected');
-          setConnectionPhone(result.phone || '');
-          setQrCode(null);
-          stopPolling();
-          toast.success('✅ WhatsApp conectado com sucesso!');
-        }
-      } catch {
-        // silently retry
-      }
-    }, 5000);
-  }, [stopPolling]);
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => stopPolling();
-  }, [stopPolling]);
-
   const handleSave = async () => {
     if (!user) return;
     setLoading(true);
@@ -179,69 +145,6 @@ export default function SettingsPage() {
     }, { onConflict: 'user_id' });
     if (error) toast.error(error.message); else toast.success('Configurações salvas!');
     setLoading(false);
-  };
-
-  const handleTestConnection = async () => {
-    setTestingConnection(true);
-    try {
-      const result = await api.invokeFunction('evolution-status');
-      if (result.connected) {
-        setConnectionStatus('connected');
-        setConnectionPhone(result.phone || '');
-        toast.success('Conectado!');
-        setQrCode(null);
-      } else {
-        setConnectionStatus('disconnected');
-        setConnectionPhone('');
-        toast.error(result.error || 'Desconectado');
-      }
-    } catch {
-      setConnectionStatus('disconnected');
-      setConnectionPhone('');
-      toast.error('Erro ao testar conexão.');
-    }
-    setTestingConnection(false);
-  };
-
-  const handleCreateInstance = async () => {
-    setCreatingInstance(true);
-    try {
-      const result = await api.invokeFunction('evolution-create-instance');
-      if (result.error) {
-        toast.error(result.error);
-      } else {
-        if (result.qrcode) {
-          setQrCode(result.qrcode);
-          setConnectionStatus('disconnected');
-          toast.success(result.message || 'Escaneie o QR Code com seu WhatsApp!');
-          startPolling();
-        } else {
-          toast.info(result.message || 'Instância criada, mas sem QR Code.');
-        }
-        // Update instance name in local state if auto-generated
-        if (result.instanceName && result.instanceName !== settings.evolution_instance) {
-          setSettings(s => ({ ...s, evolution_instance: result.instanceName }));
-        }
-      }
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao criar instância.');
-    }
-    setCreatingInstance(false);
-  };
-
-  const handleRefreshQR = async () => {
-    try {
-      const result = await api.invokeFunction('evolution-qrcode');
-      if (result.qrcode) {
-        setQrCode(result.qrcode);
-        if (!pollingActive) startPolling();
-      } else {
-        // Maybe already connected
-        await handleTestConnection();
-      }
-    } catch {
-      toast.error('Erro ao atualizar QR Code.');
-    }
   };
 
   const handleManualTrigger = async () => {
@@ -329,26 +232,6 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      {/* Connection Status Indicator */}
-      <div className="flex items-center gap-2 text-sm">
-        {connectionStatus === 'connected' ? (
-          <>
-            <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-green-500 font-medium">Conectado — número: {connectionPhone}</span>
-          </>
-        ) : connectionStatus === 'disconnected' ? (
-          <>
-            <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-            <span className="text-destructive font-medium">Desconectado</span>
-          </>
-        ) : (
-          <>
-            <div className="h-2.5 w-2.5 rounded-full bg-muted-foreground" />
-            <span className="text-muted-foreground">Status desconhecido — teste a conexão</span>
-          </>
-        )}
-      </div>
-
       <Tabs defaultValue="evolution">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="evolution">Evolution API</TabsTrigger>
@@ -359,101 +242,17 @@ export default function SettingsPage() {
 
         {/* TAB 1: Evolution API */}
         <TabsContent value="evolution">
-          <Card>
-            <CardHeader>
-              <CardTitle>Evolution API</CardTitle>
-              <CardDescription>Configurações de integração com WhatsApp via Evolution API</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>URL da API</Label>
-                <Input
-                  value={settings.evolution_api_url}
-                  onChange={(e) => setSettings(s => ({ ...s, evolution_api_url: e.target.value }))}
-                  placeholder="https://evolution.meudominio.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={settings.evolution_api_key}
-                    onChange={(e) => setSettings(s => ({ ...s, evolution_api_key: e.target.value }))}
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                  >
-                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Nome da Instância</Label>
-                <Input
-                  value={settings.evolution_instance}
-                  onChange={(e) => setSettings(s => ({ ...s, evolution_instance: e.target.value }))}
-                  placeholder="minha-instancia"
-                />
-              </div>
-              <Button onClick={handleTestConnection} disabled={testingConnection} variant="outline">
-                {connectionStatus === 'connected' ? <Wifi className="h-4 w-4 mr-2" /> : <WifiOff className="h-4 w-4 mr-2" />}
-                {testingConnection ? 'Testando...' : 'Testar Conexão'}
-              </Button>
-
-              <Button onClick={handleCreateInstance} disabled={creatingInstance || connectionStatus === 'connected'} variant="default">
-                {creatingInstance ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <QrCode className="h-4 w-4 mr-2" />}
-                {creatingInstance ? 'Criando...' : 'Conectar WhatsApp'}
-              </Button>
-
-              {/* Connected success state */}
-              {connectionStatus === 'connected' && (
-                <div className="mt-4 p-4 border border-green-500/30 rounded-lg bg-green-500/5 flex items-center gap-3">
-                  <CheckCircle2 className="h-8 w-8 text-green-500" />
-                  <div>
-                    <p className="font-medium text-green-600 dark:text-green-400">WhatsApp Conectado!</p>
-                    <p className="text-sm text-muted-foreground">Número: {connectionPhone || 'Detectando...'}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* QR Code Display */}
-              {qrCode && connectionStatus !== 'connected' && (
-                <div className="mt-4 p-6 border-2 border-dashed border-primary/30 rounded-lg bg-card flex flex-col items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <QrCode className="h-5 w-5 text-primary" />
-                    <p className="text-sm font-semibold">Escaneie o QR Code com seu WhatsApp</p>
-                  </div>
-                  <img
-                    src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
-                    alt="QR Code WhatsApp"
-                    className="w-72 h-72 border rounded-lg shadow-sm"
-                  />
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleRefreshQR} disabled={pollingActive && false}>
-                      <RefreshCw className="h-3 w-3 mr-1" />
-                      Novo QR Code
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleTestConnection}>
-                      Verificar Conexão
-                    </Button>
-                  </div>
-                  {pollingActive && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Aguardando conexão... verificando a cada 5s
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">O QR Code expira em ~60s. Clique "Novo QR Code" se expirar.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <EvolutionSetupWizard
+            settings={{
+              evolution_api_url: settings.evolution_api_url,
+              evolution_api_key: settings.evolution_api_key,
+              evolution_instance: settings.evolution_instance,
+              n8n_url: settings.n8n_url,
+              n8n_webhook_url: settings.n8n_webhook_url,
+            }}
+            onSettingsChange={(patch) => setSettings(s => ({ ...s, ...patch }))}
+            onSave={handleSave}
+          />
         </TabsContent>
 
         {/* TAB 2: PIX */}
