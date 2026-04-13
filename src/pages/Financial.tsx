@@ -190,10 +190,26 @@ export default function Financial() {
   };
 
   const cards = [
-    { title: 'A Receber (5 dias)', value: formatBRL(metrics.toReceive), icon: CalendarClock, color: 'text-primary' },
-    { title: 'Pago (Este Mês)', value: formatBRL(metrics.paidThisMonth), icon: DollarSign, color: 'text-green-500' },
-    { title: 'Em Atraso', value: formatBRL(metrics.overdueAmount), icon: AlertTriangle, color: 'text-destructive' },
-    { title: 'Despesas', value: formatBRL(metrics.expenses), icon: TrendingDown, color: 'text-yellow-500' },
+    {
+      title: 'A Receber (5 dias)', value: formatBRL(metrics.toReceive), icon: CalendarClock,
+      color: 'text-blue-600', bg: 'bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/40', shadow: 'shadow-blue-200/50 dark:shadow-blue-900/30', border: 'border-blue-200/60 dark:border-blue-800/40',
+    },
+    {
+      title: 'Pago (Este Mês)', value: formatBRL(metrics.paidThisMonth), icon: DollarSign,
+      color: 'text-emerald-600', bg: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20',
+      iconBg: 'bg-emerald-100 dark:bg-emerald-900/40', shadow: 'shadow-emerald-200/50 dark:shadow-emerald-900/30', border: 'border-emerald-200/60 dark:border-emerald-800/40',
+    },
+    {
+      title: 'Em Atraso', value: formatBRL(metrics.overdueAmount), icon: AlertTriangle,
+      color: 'text-rose-600', bg: 'bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20',
+      iconBg: 'bg-rose-100 dark:bg-rose-900/40', shadow: 'shadow-rose-200/50 dark:shadow-rose-900/30', border: 'border-rose-200/60 dark:border-rose-800/40',
+    },
+    {
+      title: 'Despesas', value: formatBRL(metrics.expenses), icon: TrendingDown,
+      color: 'text-amber-600', bg: 'bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20',
+      iconBg: 'bg-amber-100 dark:bg-amber-900/40', shadow: 'shadow-amber-200/50 dark:shadow-amber-900/30', border: 'border-amber-200/60 dark:border-amber-800/40',
+    },
   ];
 
   return (
@@ -213,10 +229,12 @@ export default function Financial() {
       {/* Metric Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {cards.map(card => (
-          <Card key={card.title}>
+          <Card key={card.title} className={`${card.bg} ${card.border} ${card.shadow} shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5`}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{card.title}</CardTitle>
-              <card.icon className={`h-4 w-4 ${card.color}`} />
+              <div className={`p-2 rounded-lg ${card.iconBg}`}>
+                <card.icon className={`h-4 w-4 ${card.color}`} />
+              </div>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{card.value}</div>
