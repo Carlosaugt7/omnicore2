@@ -187,6 +187,8 @@ export type Database = {
           evolution_api_url: string | null
           evolution_instance: string | null
           id: string
+          n8n_url: string | null
+          n8n_webhook_url: string | null
           pix_beneficiary: string | null
           pix_key: string | null
           pix_key_type: string | null
@@ -205,6 +207,8 @@ export type Database = {
           evolution_api_url?: string | null
           evolution_instance?: string | null
           id?: string
+          n8n_url?: string | null
+          n8n_webhook_url?: string | null
           pix_beneficiary?: string | null
           pix_key?: string | null
           pix_key_type?: string | null
@@ -223,6 +227,8 @@ export type Database = {
           evolution_api_url?: string | null
           evolution_instance?: string | null
           id?: string
+          n8n_url?: string | null
+          n8n_webhook_url?: string | null
           pix_beneficiary?: string | null
           pix_key?: string | null
           pix_key_type?: string | null
