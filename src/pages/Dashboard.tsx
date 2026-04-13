@@ -253,10 +253,12 @@ export default function Dashboard() {
       {/* Metric Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => (
-          <Card key={card.title}>
+          <Card key={card.title} className={`${card.bg} ${card.border} ${card.shadow} shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5`}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{card.title}</CardTitle>
-              <card.icon className={`h-4 w-4 ${card.color}`} />
+              <div className={`p-2 rounded-lg ${card.iconBg}`}>
+                <card.icon className={`h-4 w-4 ${card.color}`} />
+              </div>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{card.value}</div>
