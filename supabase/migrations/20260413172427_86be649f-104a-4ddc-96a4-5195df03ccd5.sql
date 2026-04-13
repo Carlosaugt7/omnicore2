@@ -1,0 +1,4 @@
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS n8n_configured BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS evolution_phone TEXT,
+ADD COLUMN IF NOT EXISTS evolution_status TEXT;

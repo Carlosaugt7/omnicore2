@@ -56,6 +56,8 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
   // Step 3
   const [disconnecting, setDisconnecting] = useState(false);
 
+  const [n8nConfigured, setN8nConfigured] = useState(false);
+
   // On mount, check if already connected
   useEffect(() => {
     if (settings.evolution_api_url && settings.evolution_api_key && settings.evolution_instance) {
@@ -181,6 +183,9 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
         }
         if (result.instanceName) {
           onSettingsChange({ evolution_instance: result.instanceName });
+        }
+        if (result.n8nConfigured) {
+          setN8nConfigured(true);
         }
       }
     } catch (err) {
@@ -493,7 +498,7 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
               </div>
               <div className="flex items-center gap-2">
                 {settings.n8n_webhook_url ? (
-                  <><CheckCircle2 className="h-4 w-4 text-green-500" /><span>N8N configurado ✓</span></>
+                  <><CheckCircle2 className={`h-4 w-4 ${n8nConfigured ? 'text-green-500' : 'text-yellow-500'}`} /><span>{n8nConfigured ? 'N8N configurado ✓' : 'N8N configurado (verificando...)'}</span></>
                 ) : (
                   <><AlertCircle className="h-4 w-4 text-muted-foreground" /><span className="text-muted-foreground">N8N não configurado (opcional)</span></>
                 )}
