@@ -172,13 +172,12 @@ export default function Clients() {
 
   const handleSendWhatsApp = async (client: Client) => {
     try {
-      await api.post('/api/whatsapp/send-single', {
+      await api.invokeFunction('whatsapp-send', {
         clientId: client.id,
         phone: client.phone,
-        name: client.name,
-        dueDate: client.due_date,
-        value: client.value,
-        plan: client.plan,
+        clientName: client.name,
+        message: `Olá ${client.name}! Lembrete sobre seu plano.`,
+        templateType: 'manual',
       });
       toast.success(`WhatsApp enviado para ${client.name}`);
     } catch {

@@ -113,9 +113,17 @@ export default function Reminders() {
   const handleSendSingle = async (client: Client, templateType: string) => {
     setSendStatus(s => ({ ...s, [client.id]: 'sending' }));
     try {
-      await api.post('/api/whatsapp/send-single', {
+      await api.invokeFunction('whatsapp-send', {
         clientId: client.id,
         phone: client.phone,
+        clientName: client.name,
+        message: replaceVars(
+          templateType === 'before' ? settings.template_before :
+          templateType === 'today' ? settings.template_today :
+          settings.template_overdue,
+          client,
+          settings.pix_key
+        ),
         templateType,
       });
       setSendStatus(s => ({ ...s, [client.id]: 'sent' }));
@@ -132,9 +140,17 @@ export default function Reminders() {
 
     for (const client of targetClients) {
       try {
-        await api.post('/api/whatsapp/send-single', {
+        await api.invokeFunction('whatsapp-send', {
           clientId: client.id,
           phone: client.phone,
+          clientName: client.name,
+          message: replaceVars(
+            type === 'before' ? settings.template_before :
+            type === 'today' ? settings.template_today :
+            settings.template_overdue,
+            client,
+            settings.pix_key
+          ),
           templateType: type,
         });
         setSendStatus(s => ({ ...s, [client.id]: 'sent' }));

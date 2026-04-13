@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Eye, EyeOff, Wifi, WifiOff, Play, Save } from 'lucide-react';
+import { Eye, EyeOff, Wifi, WifiOff, Play, Save, QrCode, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -83,6 +83,8 @@ export default function SettingsPage() {
   const [connectionPhone, setConnectionPhone] = useState('');
   const [testingConnection, setTestingConnection] = useState(false);
   const [triggeringManual, setTriggeringManual] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [creatingInstance, setCreatingInstance] = useState(false);
   const [recentLogs, setRecentLogs] = useState<ReminderLog[]>([]);
   const [sampleClient, setSampleClient] = useState<{ name: string; plan: string; value: string; due_date: string; server: string } | null>(null);
 
@@ -147,29 +149,62 @@ export default function SettingsPage() {
   const handleTestConnection = async () => {
     setTestingConnection(true);
     try {
-      const result = await api.get('/api/evolution/status');
+      const result = await api.invokeFunction('evolution-status');
       if (result.connected) {
         setConnectionStatus('connected');
         setConnectionPhone(result.phone || '');
         toast.success('Conectado!');
+        setQrCode(null);
       } else {
         setConnectionStatus('disconnected');
         setConnectionPhone('');
-        toast.error('Desconectado');
+        toast.error(result.error || 'Desconectado');
       }
     } catch {
       setConnectionStatus('disconnected');
       setConnectionPhone('');
-      toast.error('Erro ao testar conexão. Verifique o backend.');
+      toast.error('Erro ao testar conexão.');
     }
     setTestingConnection(false);
+  };
+
+  const handleCreateInstance = async () => {
+    setCreatingInstance(true);
+    try {
+      const result = await api.invokeFunction('evolution-create-instance');
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        if (result.qrcode) {
+          setQrCode(result.qrcode);
+          toast.success(result.message || 'QR Code gerado! Escaneie com seu celular.');
+        } else {
+          toast.info(result.message || 'Instância criada, mas sem QR Code.');
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao criar instância.');
+    }
+    setCreatingInstance(false);
+  };
+
+  const handleRefreshQR = async () => {
+    try {
+      const result = await api.invokeFunction('evolution-qrcode');
+      if (result.qrcode) {
+        setQrCode(result.qrcode);
+      } else {
+        toast.error('QR Code não disponível.');
+      }
+    } catch {
+      toast.error('Erro ao atualizar QR Code.');
+    }
   };
 
   const handleManualTrigger = async () => {
     setTriggeringManual(true);
     try {
-      await api.post('/api/scheduler/run-now', {});
-      toast.success('Disparo manual iniciado!');
+      toast.info('Função de disparo em massa será implementada em breve.');
       // Reload logs after a bit
       setTimeout(async () => {
         if (!user) return;
@@ -327,6 +362,32 @@ export default function SettingsPage() {
                 {connectionStatus === 'connected' ? <Wifi className="h-4 w-4 mr-2" /> : <WifiOff className="h-4 w-4 mr-2" />}
                 {testingConnection ? 'Testando...' : 'Testar Conexão'}
               </Button>
+
+              <Button onClick={handleCreateInstance} disabled={creatingInstance} variant="default">
+                {creatingInstance ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <QrCode className="h-4 w-4 mr-2" />}
+                {creatingInstance ? 'Criando...' : 'Conectar WhatsApp'}
+              </Button>
+
+              {/* QR Code Display */}
+              {qrCode && (
+                <div className="mt-4 p-4 border rounded-lg bg-white dark:bg-gray-900 flex flex-col items-center gap-3">
+                  <p className="text-sm font-medium">Escaneie o QR Code com seu WhatsApp:</p>
+                  <img
+                    src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
+                    alt="QR Code WhatsApp"
+                    className="w-64 h-64 border rounded"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handleRefreshQR}>
+                      Atualizar QR Code
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleTestConnection}>
+                      Verificar Conexão
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">O QR Code expira em ~60 segundos</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
