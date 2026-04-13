@@ -1,19 +1,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const json = (data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
+  if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
-  }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader?.startsWith("Bearer "))
+      return json({ error: "Unauthorized" }, 401);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -22,14 +28,11 @@ Deno.serve(async (req) => {
     );
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const userId = claimsData.claims.sub;
+    const { data: claimsData, error: claimsError } =
+      await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims)
+      return json({ error: "Unauthorized" }, 401);
+    const userId = claimsData.claims.sub as string;
 
     const { data: settings } = await supabase
       .from("settings")
@@ -37,46 +40,85 @@ Deno.serve(async (req) => {
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (!settings?.evolution_api_url || !settings?.evolution_api_key || !settings?.evolution_instance) {
-      return new Response(
-        JSON.stringify({ connected: false, error: "Credenciais não configuradas." }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (
+      !settings?.evolution_api_url ||
+      !settings?.evolution_api_key ||
+      !settings?.evolution_instance
+    ) {
+      return json({
+        connected: false,
+        state: "not_configured",
+        error: "Credenciais não configuradas.",
+      });
     }
 
     const baseUrl = settings.evolution_api_url.replace(/\/+$/, "");
+    const instanceName = settings.evolution_instance;
+
+    // Fetch connection state
     const res = await fetch(
-      `${baseUrl}/instance/connectionState/${settings.evolution_instance}`,
+      `${baseUrl}/instance/connectionState/${instanceName}`,
       { headers: { apikey: settings.evolution_api_key } }
     );
-
     const data = await res.json();
-    const state = data?.instance?.state || data?.state || "unknown";
+
+    const state =
+      data?.instance?.state || data?.state || "unknown";
     const connected = state === "open";
 
-    // Try to get phone number if connected
+    // Try to get phone / profile name
     let phone = "";
     if (connected) {
-      try {
-        const infoRes = await fetch(
-          `${baseUrl}/instance/fetchInstances?instanceName=${settings.evolution_instance}`,
-          { headers: { apikey: settings.evolution_api_key } }
-        );
-        const infoData = await infoRes.json();
-        const inst = Array.isArray(infoData) ? infoData[0] : infoData;
-        phone = inst?.instance?.owner || inst?.owner || "";
-      } catch { /* ignore */ }
+      // First try profileName from connectionState response
+      phone =
+        data?.instance?.profileName ||
+        data?.instance?.owner ||
+        data?.profileName ||
+        "";
+
+      // If empty, fetch from instances list
+      if (!phone) {
+        try {
+          const infoRes = await fetch(
+            `${baseUrl}/instance/fetchInstances?instanceName=${instanceName}`,
+            { headers: { apikey: settings.evolution_api_key } }
+          );
+          const infoData = await infoRes.json();
+          const inst = Array.isArray(infoData) ? infoData[0] : infoData;
+          phone =
+            inst?.instance?.owner ||
+            inst?.instance?.profileName ||
+            inst?.owner ||
+            "";
+        } catch {
+          /* ignore */
+        }
+      }
+
+      // Save phone and status to settings
+      await supabase
+        .from("settings")
+        .update({
+          evolution_phone: phone || null,
+          evolution_status: "open",
+        })
+        .eq("user_id", userId);
+    } else {
+      // Update disconnected status
+      await supabase
+        .from("settings")
+        .update({ evolution_status: state })
+        .eq("user_id", userId);
     }
 
-    return new Response(
-      JSON.stringify({ connected, state, phone }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ connected, state, phone });
   } catch (error) {
     console.error("evolution-status error:", error);
-    return new Response(
-      JSON.stringify({ connected: false, error: "Erro ao verificar conexão.", fallback: true }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({
+      connected: false,
+      state: "error",
+      error: "Erro ao verificar conexão.",
+      fallback: true,
+    });
   }
 });
