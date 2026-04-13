@@ -1,9 +1,10 @@
 import {
-  LayoutDashboard, Bot, Users, BookOpen, MessageSquare,
-  BarChart3, Settings, CreditCard, LogOut, Zap,
+  LayoutDashboard, Users, Server, DollarSign, Bell,
+  MonitorSmartphone, Settings, LogOut, Zap,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -14,23 +15,24 @@ import { Separator } from "@/components/ui/separator";
 
 const mainNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Agentes", url: "/dashboard/agents", icon: Bot },
   { title: "Clientes", url: "/dashboard/clients", icon: Users },
-  { title: "Conhecimento", url: "/dashboard/knowledge", icon: BookOpen },
-  { title: "Conversas", url: "/dashboard/conversations", icon: MessageSquare },
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3 },
+  { title: "Serviços", url: "/dashboard/services", icon: Server },
+  { title: "Financeiro", url: "/dashboard/financial", icon: DollarSign },
+  { title: "Lembretes", url: "/dashboard/reminders", icon: Bell },
+  { title: "MAC Address", url: "/dashboard/mac-addresses", icon: MonitorSmartphone },
 ];
 
 const bottomNav = [
   { title: "Configurações", url: "/dashboard/settings", icon: Settings },
-  { title: "Assinatura", url: "/dashboard/billing", icon: CreditCard },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const initials = user?.email?.slice(0, 2).toUpperCase() || "U";
 
   return (
     <Sidebar collapsible="icon">
@@ -40,9 +42,7 @@ export function AppSidebar() {
             <Zap className="h-4 w-4 text-primary-foreground" />
           </div>
           {!collapsed && (
-            <span className="text-lg font-bold text-sidebar-foreground">
-              ZapMind
-            </span>
+            <span className="text-lg font-bold text-sidebar-foreground">OmniCore</span>
           )}
         </div>
       </SidebarHeader>
@@ -93,22 +93,29 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Sair" onClick={signOut}>
+                  <LogOut className="h-4 w-4" />
+                  <span>Sair</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
         <Separator className="bg-sidebar-border" />
         <div className="p-2">
-          <div className="flex items-center gap-2 rounded-md p-2 hover:bg-sidebar-accent cursor-pointer">
+          <div className="flex items-center gap-2 rounded-md p-2">
             <Avatar className="h-7 w-7">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                U
+                {initials}
               </AvatarFallback>
             </Avatar>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-sidebar-foreground truncate">Usuário</p>
-                <p className="text-[10px] text-sidebar-muted truncate">usuario@email.com</p>
+                <p className="text-xs font-medium text-sidebar-foreground truncate">
+                  {user?.email || 'Usuário'}
+                </p>
               </div>
             )}
           </div>
