@@ -208,7 +208,11 @@ export default function Reminders() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {tab.clients.map(client => (
-                  <Card key={client.id}>
+                  <Card key={client.id} className={
+                    tab.templateType === 'antes' ? 'bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20 border-amber-200/60 dark:border-amber-800/40 shadow-lg shadow-amber-200/50 dark:shadow-amber-900/30 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5' :
+                    tab.templateType === 'hoje' ? 'bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200/60 dark:border-blue-800/40 shadow-lg shadow-blue-200/50 dark:shadow-blue-900/30 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5' :
+                    'bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20 border-rose-200/60 dark:border-rose-800/40 shadow-lg shadow-rose-200/50 dark:shadow-rose-900/30 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5'
+                  }>
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">{client.name}</CardTitle>
