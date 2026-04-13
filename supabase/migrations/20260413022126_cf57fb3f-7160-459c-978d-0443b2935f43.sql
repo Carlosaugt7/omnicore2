@@ -1,0 +1,6 @@
+
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS pix_beneficiary TEXT,
+ADD COLUMN IF NOT EXISTS send_before_due BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS send_on_due BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS send_overdue BOOLEAN DEFAULT true;

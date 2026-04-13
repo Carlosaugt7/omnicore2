@@ -187,9 +187,13 @@ export type Database = {
           evolution_api_url: string | null
           evolution_instance: string | null
           id: string
+          pix_beneficiary: string | null
           pix_key: string | null
           pix_key_type: string | null
           reminder_time: string | null
+          send_before_due: boolean | null
+          send_on_due: boolean | null
+          send_overdue: boolean | null
           template_before: string | null
           template_overdue: string | null
           template_today: string | null
@@ -201,9 +205,13 @@ export type Database = {
           evolution_api_url?: string | null
           evolution_instance?: string | null
           id?: string
+          pix_beneficiary?: string | null
           pix_key?: string | null
           pix_key_type?: string | null
           reminder_time?: string | null
+          send_before_due?: boolean | null
+          send_on_due?: boolean | null
+          send_overdue?: boolean | null
           template_before?: string | null
           template_overdue?: string | null
           template_today?: string | null
@@ -215,9 +223,13 @@ export type Database = {
           evolution_api_url?: string | null
           evolution_instance?: string | null
           id?: string
+          pix_beneficiary?: string | null
           pix_key?: string | null
           pix_key_type?: string | null
           reminder_time?: string | null
+          send_before_due?: boolean | null
+          send_on_due?: boolean | null
+          send_overdue?: boolean | null
           template_before?: string | null
           template_overdue?: string | null
           template_today?: string | null
