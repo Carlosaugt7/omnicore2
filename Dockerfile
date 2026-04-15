@@ -1,38 +1,52 @@
-# ── Stage 1: dependencies ──────────────────────────────────────
-FROM node:22-alpine AS deps
+# ── Stage 1: build ─────────────────────────────────────────────
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY backend/package.json backend/package-lock.json ./
+COPY package.json package-lock.json ./
 
-RUN npm ci --omit=dev
+RUN npm ci
 
-# ── Stage 2: production image ──────────────────────────────────
-FROM node:22-alpine AS runner
+COPY . .
 
-WORKDIR /app
+# Build args — injected by Easypanel as environment variables
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_SUPABASE_PROJECT_ID
+ARG VITE_BACKEND_URL
 
-# Create non-root user for security
-RUN addgroup -S omnicore && adduser -S omnicore -G omnicore
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+ENV VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID
+ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 
-# Copy installed dependencies
-COPY --from=deps /app/node_modules ./node_modules
+RUN npm run build
 
-# Copy backend source only
-COPY backend/ .
+# ── Stage 2: serve with nginx ───────────────────────────────────
+FROM nginx:alpine AS runner
 
-# Remove dev/example files from image
-RUN rm -f .env.example
+RUN rm /etc/nginx/conf.d/default.conf
 
-# Set ownership
-RUN chown -R omnicore:omnicore /app
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-USER omnicore
+RUN printf 'server {\n\
+    listen 80;\n\
+    root /usr/share/nginx/html;\n\
+    index index.html;\n\
+    location / {\n\
+        try_files $uri $uri/ /index.html;\n\
+    }\n\
+    location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {\n\
+        expires 1y;\n\
+        add_header Cache-Control "public, immutable";\n\
+    }\n\
+    add_header X-Frame-Options "SAMEORIGIN" always;\n\
+    add_header X-Content-Type-Options "nosniff" always;\n\
+}\n' > /etc/nginx/conf.d/omnicore.conf
 
-EXPOSE 3001
+EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3001/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD wget -qO- http://localhost:80 || exit 1
 
-CMD ["node", "server.js"]
+CMD ["nginx", "-g", "daemon off;"]
