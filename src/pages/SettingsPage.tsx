@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -147,16 +148,20 @@ export default function SettingsPage() {
   };
 
   const handleManualTrigger = async () => {
+    if (!user) return;
     setTriggeringManual(true);
     try {
-      toast.info('Função de disparo em massa será implementada em breve.');
-      // Reload logs after a bit
-      setTimeout(async () => {
-        if (!user) return;
-        const { data } = await supabase.from('reminder_logs').select('*').eq('user_id', user.id)
-          .order('created_at', { ascending: false }).limit(10);
-        if (data) setRecentLogs(data);
-      }, 3000);
+      const result = await api.schedulerRunNow(user.id);
+      if (result.success) {
+        const s = result.summary;
+        toast.success(`Disparado! Enviados: ${s.sent} | Ignorados: ${s.skipped} | Erros: ${s.failed}`);
+      } else {
+        toast.error(result.error || 'Erro ao disparar.');
+      }
+      // Reload logs
+      const { data } = await supabase.from('reminder_logs').select('*').eq('user_id', user.id)
+        .order('created_at', { ascending: false }).limit(10);
+      if (data) setRecentLogs(data);
     } catch {
       toast.error('Erro ao disparar. Verifique o backend.');
     }

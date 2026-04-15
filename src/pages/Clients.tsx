@@ -171,15 +171,19 @@ export default function Clients() {
   };
 
   const handleSendWhatsApp = async (client: Client) => {
+    if (!user) return;
     try {
-      await api.invokeFunction('whatsapp-send', {
+      const result = await api.whatsappSendSingle({
+        userId: user.id,
         clientId: client.id,
         phone: client.phone,
-        clientName: client.name,
-        message: `Olá ${client.name}! Lembrete sobre seu plano.`,
-        templateType: 'manual',
+        templateType: 'template_today',
       });
-      toast.success(`WhatsApp enviado para ${client.name}`);
+      if (result.success) {
+        toast.success(`WhatsApp enviado para ${client.name}`);
+      } else {
+        toast.error(result.error || 'Erro ao enviar WhatsApp.');
+      }
     } catch {
       toast.error('Erro ao enviar WhatsApp. Verifique o backend.');
     }

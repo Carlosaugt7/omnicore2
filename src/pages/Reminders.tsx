@@ -111,50 +111,51 @@ export default function Reminders() {
   ], [clients, settings, today, tomorrow, yesterday]);
 
   const handleSendSingle = async (client: Client, templateType: string) => {
+    if (!user) return;
     setSendStatus(s => ({ ...s, [client.id]: 'sending' }));
     try {
-      await api.invokeFunction('whatsapp-send', {
+      // Map local tab type to backend template key
+      const backendTemplateType =
+        templateType === 'antes' ? 'template_before' :
+        templateType === 'hoje' ? 'template_today' :
+        'template_overdue';
+
+      const result = await api.whatsappSendSingle({
+        userId: user.id,
         clientId: client.id,
         phone: client.phone,
-        clientName: client.name,
-        message: replaceVars(
-          templateType === 'before' ? settings.template_before :
-          templateType === 'today' ? settings.template_today :
-          settings.template_overdue,
-          client,
-          settings.pix_key
-        ),
-        templateType,
+        templateType: backendTemplateType,
       });
-      setSendStatus(s => ({ ...s, [client.id]: 'sent' }));
+      setSendStatus(s => ({ ...s, [client.id]: result.success ? 'sent' : 'error' }));
+      if (!result.success) toast.error(result.error || 'Erro ao enviar.');
     } catch {
       setSendStatus(s => ({ ...s, [client.id]: 'error' }));
     }
   };
 
   const handleSendAll = async () => {
+    if (!user) return;
     setSendingAll(true);
     const { type, clients: targetClients } = confirmModal;
     let successCount = 0;
     let errorCount = 0;
 
+    // Map local tab type to backend template key
+    const backendTemplateType =
+      type === 'antes' ? 'template_before' :
+      type === 'hoje' ? 'template_today' :
+      'template_overdue';
+
     for (const client of targetClients) {
       try {
-        await api.invokeFunction('whatsapp-send', {
+        const result = await api.whatsappSendSingle({
+          userId: user.id,
           clientId: client.id,
           phone: client.phone,
-          clientName: client.name,
-          message: replaceVars(
-            type === 'before' ? settings.template_before :
-            type === 'today' ? settings.template_today :
-            settings.template_overdue,
-            client,
-            settings.pix_key
-          ),
-          templateType: type,
+          templateType: backendTemplateType,
         });
-        setSendStatus(s => ({ ...s, [client.id]: 'sent' }));
-        successCount++;
+        setSendStatus(s => ({ ...s, [client.id]: result.success ? 'sent' : 'error' }));
+        if (result.success) successCount++; else errorCount++;
       } catch {
         setSendStatus(s => ({ ...s, [client.id]: 'error' }));
         errorCount++;

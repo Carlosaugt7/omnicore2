@@ -10,6 +10,7 @@ import { api } from '@/services/api';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import type { Database } from '@/integrations/supabase/types';
+import DataTransfer from '@/components/DataTransfer';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Transaction = Database['public']['Tables']['transactions']['Row'];
@@ -148,16 +149,20 @@ export default function Dashboard() {
   }, [transactions]);
 
   const handleSendWhatsApp = async (client: Client) => {
+    if (!user) return;
     setSendingId(client.id);
     try {
-      await api.invokeFunction('whatsapp-send', {
+      const result = await api.whatsappSendSingle({
+        userId: user.id,
         clientId: client.id,
         phone: client.phone,
-        clientName: client.name,
-        message: `Olá ${client.name}! Lembrete sobre seu plano.`,
-        templateType: 'manual',
+        templateType: 'template_today',
       });
-      toast.success(`WhatsApp enviado para ${client.name}`);
+      if (result.success) {
+        toast.success(`WhatsApp enviado para ${client.name}`);
+      } else {
+        toast.error(result.error || 'Erro ao enviar WhatsApp.');
+      }
     } catch {
       toast.error('Erro ao enviar WhatsApp. Verifique o backend.');
     }
@@ -247,7 +252,10 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <DataTransfer />
+      </div>
 
       {/* Metric Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

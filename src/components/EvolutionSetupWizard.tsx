@@ -87,8 +87,9 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
   };
 
   const checkStatus = async (): Promise<boolean> => {
+    if (!user) return false;
     try {
-      const result = await api.invokeFunction('evolution-status');
+      const result = await api.evolutionStatus(user.id);
       if (result.connected) {
         setConnectionStatus('connected');
         setConnectionPhone(result.phone || '');
@@ -107,7 +108,7 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
     setPollingActive(true);
     pollingRef.current = setInterval(async () => {
       try {
-        const result = await api.invokeFunction('evolution-status');
+        const result = await api.evolutionStatus(user?.id || '');
         if (result.connected) {
           setConnectionStatus('connected');
           setConnectionPhone(result.phone || '');
@@ -145,24 +146,23 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
 
   // === STEP 1: Ping ===
   const handlePing = async () => {
+    if (!user) return;
     setPinging(true);
     setPingError('');
     try {
-      const result = await api.invokeFunction('evolution-ping', {
-        evolutionUrl: settings.evolution_api_url,
-        evolutionApiKey: settings.evolution_api_key,
-      });
-      if (result.success) {
+      const result = await api.evolutionPing(
+        settings.evolution_api_url,
+        settings.evolution_api_key,
+      );
+      if (result.ok) {
         toast.success('Evolution API acessível!');
-        // Save credentials first
         await onSave();
         setStep(2);
-        // Auto-trigger instance creation
         setTimeout(() => handleSetup(), 300);
       } else {
         setPingError(result.error || 'Não foi possível conectar à Evolution API. Verifique a URL e a API Key.');
       }
-    } catch (err) {
+    } catch {
       setPingError('Erro ao testar conexão. Verifique se a URL está correta.');
     }
     setPinging(false);
@@ -170,14 +170,20 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
 
   // === STEP 2: Setup instance ===
   const handleSetup = async () => {
+    if (!user) return;
     setCreatingInstance(true);
     try {
-      const result = await api.invokeFunction('evolution-create-instance');
+      const result = await api.evolutionSetup({
+        userId: user.id,
+        evolutionUrl: settings.evolution_api_url,
+        evolutionApiKey: settings.evolution_api_key,
+        n8nWebhookUrl: settings.n8n_webhook_url || undefined,
+      });
       if (result.error) {
         toast.error(result.error);
       } else {
-        if (result.qrcode) {
-          setQrCode(result.qrcode);
+        if (result.qrCode) {
+          setQrCode(result.qrCode);
           startCountdown();
           startPolling();
         }
@@ -188,17 +194,18 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
           setN8nConfigured(true);
         }
       }
-    } catch (err) {
+    } catch {
       toast.error('Erro ao criar instância.');
     }
     setCreatingInstance(false);
   };
 
   const handleRefreshQR = async () => {
+    if (!user) return;
     try {
-      const result = await api.invokeFunction('evolution-qrcode');
-      if (result.qrcode) {
-        setQrCode(result.qrcode);
+      const result = await api.evolutionConnectQr(user.id);
+      if (result.qrCode) {
+        setQrCode(result.qrCode);
         startCountdown();
         if (!pollingActive) startPolling();
       } else {
@@ -216,9 +223,10 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
 
   // === STEP 3: Disconnect ===
   const handleDisconnect = async () => {
+    if (!user) return;
     setDisconnecting(true);
     try {
-      await api.invokeFunction('evolution-disconnect');
+      await api.evolutionDisconnect(user.id);
       setConnectionStatus('disconnected');
       setConnectionPhone('');
       toast.success('WhatsApp desconectado.');
