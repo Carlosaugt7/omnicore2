@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
+const rateLimit = require('express-rate-limit');
 
 const evolutionRoutes = require('./routes/evolution');
 const whatsappRoutes = require('./routes/whatsapp');
@@ -41,6 +42,31 @@ app.use(
 
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// ─────────────────────────────────────────────────────────────
+// Rate limiting
+// ─────────────────────────────────────────────────────────────
+
+// General API: 100 requests per minute per IP
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+
+// WhatsApp send: 20 sends per minute per IP (prevent abuse)
+const whatsappLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'WhatsApp rate limit exceeded. Please wait before sending more messages.' },
+});
+
+app.use('/api/', generalLimiter);
+app.use('/api/whatsapp/', whatsappLimiter);
 
 // ─────────────────────────────────────────────────────────────
 // Request logger (dev-friendly)

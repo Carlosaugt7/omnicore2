@@ -61,7 +61,7 @@ async function runJobForUser(userId) {
       .select('*')
       .eq('user_id', userId)
       .eq('due_date', date)
-      .eq('status', 'active');
+      .eq('status', 'ativo');
 
     if (error) {
       summary.errors.push(`DB error fetching clients for ${date}: ${error.message}`);
@@ -86,7 +86,7 @@ async function runJobForUser(userId) {
           clientName: client.name,
           phone: client.phone,
           templateType: type,
-          status: 'sent',
+          status: 'success',
           messageId: result?.key?.id || result?.messageId || null,
         });
 

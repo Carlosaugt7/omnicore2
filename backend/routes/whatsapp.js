@@ -7,19 +7,29 @@ const {
   sendMessage,
   saveReminderLog,
 } = require('../services/evolutionService');
+const { requireAuth } = require('../middleware/auth');
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/whatsapp/send-single
 // Sends a WhatsApp message to a single client using a template
 // Body: { userId, clientId, phone, templateType }
 // ─────────────────────────────────────────────────────────────
-router.post('/send-single', async (req, res) => {
-  const { userId, clientId, phone, templateType } = req.body;
+router.post('/send-single', requireAuth, async (req, res) => {
+  const userId = req.userId; // verified from JWT
+  const { clientId, phone, templateType } = req.body;
 
-  if (!userId || !clientId || !templateType) {
+  if (!clientId || !templateType) {
     return res.status(400).json({
       success: false,
-      error: 'userId, clientId and templateType are required',
+      error: 'clientId and templateType are required',
+    });
+  }
+
+  // Validate phone format
+  if (!phone || !/^\+?\d{8,15}$/.test(phone.replace(/[\s\-().]/g, ''))) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid phone number format',
     });
   }
 
@@ -31,11 +41,14 @@ router.post('/send-single', async (req, res) => {
     return res.status(404).json({ success: false, error: err.message });
   }
 
-  if (!settings.evolution_api_url || !settings.evolution_instance) {
-    return res.status(400).json({ success: false, error: 'Evolution API not configured' });
+  if (!settings.evolution_api_url || !settings.evolution_api_key || !settings.evolution_instance) {
+    return res.status(400).json({
+      success: false,
+      error: 'Evolution API not configured. Please set up your WhatsApp connection first.',
+    });
   }
 
-  // 2. Fetch client data
+  // 2. Fetch client data (verify it belongs to this user)
   const { data: client, error: clientError } = await supabase
     .from('clients')
     .select('*')
@@ -47,51 +60,46 @@ router.post('/send-single', async (req, res) => {
     return res.status(404).json({ success: false, error: 'Client not found' });
   }
 
-  // 3. Resolve phone: use provided phone or fall back to client.phone
-  const targetPhone = phone || client.phone;
-
-  // 4. Build message from template
+  // 3. Build message from template
   const template = settings[templateType];
   if (!template) {
     return res.status(400).json({
       success: false,
-      error: `Template "${templateType}" not configured in settings`,
+      error: `Template "${templateType}" not configured`,
     });
   }
 
   const text = buildMessage(template, client, settings);
 
-  // 5. Send message
+  // 4. Send via Evolution API
   try {
-    const result = await sendMessage(settings, targetPhone, text);
-    const messageId = result?.key?.id || result?.messageId || null;
+    const result = await sendMessage(settings, phone, text);
 
-    // 6. Save log
     await saveReminderLog({
       userId,
       clientId: client.id,
       clientName: client.name,
-      phone: targetPhone,
+      phone,
       templateType,
-      status: 'sent',
-      messageId,
+      status: 'success',
+      messageId: result?.key?.id || result?.messageId || null,
     });
 
-    return res.json({ success: true, messageId });
+    return res.json({ success: true, messageId: result?.key?.id || null });
   } catch (err) {
-    const errorMessage = err.response?.data?.message || err.message;
+    const errorMsg = err.response?.data?.message || err.message;
 
     await saveReminderLog({
       userId,
       clientId: client.id,
       clientName: client.name,
-      phone: targetPhone,
+      phone,
       templateType,
       status: 'failed',
-      errorMessage,
+      errorMessage: errorMsg,
     });
 
-    return res.status(500).json({ success: false, error: errorMessage });
+    return res.status(500).json({ success: false, error: errorMsg });
   }
 });
 

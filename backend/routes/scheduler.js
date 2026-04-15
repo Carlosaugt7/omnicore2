@@ -1,18 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { runJobForUser } = require('../services/schedulerService');
+const { requireAuth } = require('../middleware/auth');
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/scheduler/run-now
 // Manually triggers the reminder job for a specific user
 // Body: { userId }
 // ─────────────────────────────────────────────────────────────
-router.post('/run-now', async (req, res) => {
-  const { userId } = req.body;
-
-  if (!userId) {
-    return res.status(400).json({ success: false, error: 'userId is required' });
-  }
+router.post('/run-now', requireAuth, async (req, res) => {
+  const userId = req.userId; // verified from JWT
 
   console.log(`[scheduler/run-now] Manual trigger for user: ${userId}`);
 

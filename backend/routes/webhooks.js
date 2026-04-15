@@ -27,6 +27,25 @@ function isPaymentMessage(text) {
 }
 
 /**
+ * Validates the Evolution API webhook via URL query param secret.
+ * A Evolution API não suporta headers customizados, então o segredo é
+ * passado como query param na URL do webhook:
+ *   https://api.rsconsultoria.pro/api/webhooks/evolution?secret=SEU_SEGREDO
+ *
+ * Set EVOLUTION_WEBHOOK_SECRET in your backend .env to enable.
+ * If the env var is not set, validation is skipped (backward-compatible).
+ * @param {import('express').Request} req
+ * @returns {boolean}
+ */
+function isValidWebhookRequest(req) {
+  const secret = process.env.EVOLUTION_WEBHOOK_SECRET;
+  if (!secret) return true; // secret not configured — allow all
+
+  const provided = req.query.secret;
+  return provided === secret;
+}
+
+/**
  * Handles a detected payment message:
  * - Finds the client by phone
  * - Sends an automatic confirmation reply
@@ -81,13 +100,11 @@ async function handlePaymentDetected(phone, instanceName) {
     created_at: new Date().toISOString(),
   };
 
-  // Insert into notifications table (best-effort — table may not exist yet)
   const { error: notifError } = await supabase
     .from('notifications')
     .insert(notificationData);
 
   if (notifError) {
-    // Log but don't crash — notifications table is optional
     console.warn('[webhook] Notification insert error:', notifError.message);
   }
 }
@@ -95,8 +112,15 @@ async function handlePaymentDetected(phone, instanceName) {
 // ─────────────────────────────────────────────────────────────
 // POST /api/webhooks/evolution
 // Receives events from the Evolution API
+// Optionally protected by EVOLUTION_WEBHOOK_SECRET env var
 // ─────────────────────────────────────────────────────────────
 router.post('/evolution', async (req, res) => {
+  // Validate webhook secret if configured
+  if (!isValidWebhookRequest(req)) {
+    console.warn('[webhook/evolution] Rejected request: invalid secret');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   // Acknowledge immediately so Evolution doesn't retry
   res.json({ received: true });
 
@@ -166,6 +190,12 @@ router.post('/evolution', async (req, res) => {
 // Body: { phone, message, instanceName }
 // ─────────────────────────────────────────────────────────────
 router.post('/payment-detected', async (req, res) => {
+  // Validate webhook secret if configured
+  if (!isValidWebhookRequest(req)) {
+    console.warn('[webhook/payment-detected] Rejected request: invalid secret');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   const { phone, message, instanceName } = req.body;
 
   if (!phone || !instanceName) {

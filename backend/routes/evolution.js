@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
 const { supabase } = require('../lib/supabase');
 const { createEvolutionClient, extractQrCode } = require('../lib/evolutionApi');
+const { requireAuth } = require('../middleware/auth');
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/evolution/ping
 // Tests connectivity to the Evolution API
 // Query: ?evolutionUrl=&evolutionApiKey=
 // ─────────────────────────────────────────────────────────────
-router.get('/ping', async (req, res) => {
+router.get('/ping', requireAuth, async (req, res) => {
   const { evolutionUrl, evolutionApiKey } = req.query;
 
   if (!evolutionUrl || !evolutionApiKey) {
@@ -31,16 +31,17 @@ router.get('/ping', async (req, res) => {
 // Creates/configures an Evolution instance for a user
 // Body: { userId, evolutionUrl, evolutionApiKey, n8nWebhookUrl? }
 // ─────────────────────────────────────────────────────────────
-router.post('/setup', async (req, res) => {
-  const { userId, evolutionUrl, evolutionApiKey, n8nWebhookUrl } = req.body;
+router.post('/setup', requireAuth, async (req, res) => {
+  const userId = req.userId; // verified from JWT
+  const { evolutionUrl, evolutionApiKey, n8nWebhookUrl } = req.body;
 
-  if (!userId || !evolutionUrl || !evolutionApiKey) {
-    return res.status(400).json({ success: false, error: 'userId, evolutionUrl and evolutionApiKey are required' });
+  if (!evolutionUrl || !evolutionApiKey) {
+    return res.status(400).json({ success: false, error: 'evolutionUrl and evolutionApiKey are required' });
   }
 
   const instanceName = `omnicore_${userId.substring(0, 8)}`;
   const client = createEvolutionClient(evolutionUrl, evolutionApiKey);
-  const frontendUrl = process.env.FRONTEND_URL;
+  const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
 
   try {
     // 1. Create instance
@@ -82,11 +83,19 @@ router.post('/setup', async (req, res) => {
     }
   }
 
-  // 4. Configure webhook
+  // 4. Configure webhook pointing to our backend
   try {
+    // Append secret as query param — Evolution API does not support custom headers
+    const webhookSecret = process.env.EVOLUTION_WEBHOOK_SECRET;
+    const webhookUrl = webhookSecret
+      ? `${backendUrl}/api/webhooks/evolution?secret=${encodeURIComponent(webhookSecret)}`
+      : `${backendUrl}/api/webhooks/evolution`;
+
     await client.post(`/webhook/set/${instanceName}`, {
-      url: `${frontendUrl}/api/webhooks/evolution`,
+      url: webhookUrl,
       events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+      byEvents: false,
+      base64: false,
     });
   } catch (err) {
     console.warn('[setup] Webhook config error:', err.response?.data || err.message);
@@ -126,10 +135,8 @@ router.post('/setup', async (req, res) => {
 // Returns a fresh QR code for an existing instance
 // Query: ?userId=
 // ─────────────────────────────────────────────────────────────
-router.get('/connect-qr', async (req, res) => {
-  const { userId } = req.query;
-
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
+router.get('/connect-qr', requireAuth, async (req, res) => {
+  const userId = req.userId; // verified from JWT
 
   const { data: settings, error } = await supabase
     .from('settings')
@@ -158,10 +165,8 @@ router.get('/connect-qr', async (req, res) => {
 // Returns connection state for the user's instance
 // Query: ?userId=
 // ─────────────────────────────────────────────────────────────
-router.get('/status', async (req, res) => {
-  const { userId } = req.query;
-
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
+router.get('/status', requireAuth, async (req, res) => {
+  const userId = req.userId; // verified from JWT
 
   const { data: settings, error } = await supabase
     .from('settings')
@@ -201,10 +206,8 @@ router.get('/status', async (req, res) => {
 // Logs out the WhatsApp instance
 // Body: { userId }
 // ─────────────────────────────────────────────────────────────
-router.post('/disconnect', async (req, res) => {
-  const { userId } = req.body;
-
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
+router.post('/disconnect', requireAuth, async (req, res) => {
+  const userId = req.userId; // verified from JWT
 
   const { data: settings, error } = await supabase
     .from('settings')
