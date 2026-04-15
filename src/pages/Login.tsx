@@ -36,15 +36,18 @@ export default function Login() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: window.location.origin },
     });
     if (error) {
       toast.error(error.message);
+    } else if (data.session) {
+      // Email confirmation disabled — user is logged in immediately
+      navigate('/dashboard');
     } else {
-      toast.success('Conta criada! Verifique seu e-mail para confirmar.');
+      toast.success('Conta criada! Verifique seu e-mail para confirmar o cadastro.');
     }
     setLoading(false);
   };
