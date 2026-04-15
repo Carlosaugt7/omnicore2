@@ -1,0 +1,290 @@
+services:
+
+  db:
+    hostname: supabase-db
+    image: supabase/postgres:15.8.1.060
+    restart: unless-stopped
+    networks:
+      - supabase_net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_PASSWORD: adm0418supa
+      POSTGRES_DB: postgres
+    volumes:
+      - ./volumes/db/data:/var/lib/postgresql/data
+
+  kong:
+    hostname: supabase-kong
+    image: kong:2.8.1
+    restart: unless-stopped
+    networks:
+      - supabase_net
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_PROXY_LISTEN_SSL: 0.0.0.0:8443
+    configs:
+      - source: kong_config
+        target: /var/lib/kong/kong.yml
+
+  auth:
+    hostname: supabase-auth
+    image: supabase/gotrue:v2.168.0
+    restart: unless-stopped
+    networks:
+      - supabase_net
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_DB_URL: postgres://supabase_auth_admin:adm0418supa@supabase-db:5432/postgres
+      GOTRUE_JWT_SECRET: ee699f7272463aa01c60b0e4ee31fa8fcd220959712c27ba6cb7ea6b3c0b42f9
+      GOTRUE_SITE_URL: https://omnicore.rsconsultoria.pro
+      GOTRUE_URI_ALLOW_LIST: https://omnicore.rsconsultoria.pro
+      API_EXTERNAL_URL: https://supabase.rsconsultoria.pro
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_DB_MAX_POOL_SIZE: 20
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: 10
+      GOTRUE_RATE_LIMIT_VERIFY: 30
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: 150
+      GOTRUE_RATE_LIMIT_SSO: 30
+
+  rest:
+    hostname: supabase-rest
+    image: postgrest/postgrest:v12.2.3
+    restart: unless-stopped
+    networks:
+      - supabase_net
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:adm0418supa@supabase-db:5432/postgres
+      PGRST_JWT_SECRET: ee699f7272463aa01c60b0e4ee31fa8fcd220959712c27ba6cb7ea6b3c0b42f9
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ee699f7272463aa01c60b0e4ee31fa8fcd220959712c27ba6cb7ea6b3c0b42f9
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+
+  realtime:
+    hostname: supabase-realtime
+    image: supabase/realtime:v2.34.47
+    restart: unless-stopped
+    networks:
+      - supabase_net
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DB_HOST: supabase-db
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USER: supabase_admin
+      DB_PASSWORD: adm0418supa
+      DB_SSL: "false"
+      JWT_SECRET: ee699f7272463aa01c60b0e4ee31fa8fcd220959712c27ba6cb7ea6b3c0b42f9
+      REPLICATION_MODE: RLS
+      REPLICATION_POLL_INTERVAL: 100
+      SECURE_CHANNELS: "true"
+      SLOT_NAME: supabase_realtime_rls
+      TEMPORARY_SLOT: "true"
+
+  storage:
+    hostname: supabase-storage
+    image: supabase/storage-api:v1.14.6
+    restart: unless-stopped
+    networks:
+      - supabase_net
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc2MTM5MjAwLCJleHAiOjE5MzM5MDU2MDB9.HhMEGLK_1EW6gSThptEMIQ_KTYGXNtIAGsDnlhyNyaU
+      SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NzYxMzkyMDAsImV4cCI6MTkzMzkwNTYwMH0.gh1OXeX5zik96sxr4ZyWkSJpf7h0xBRlkU6hfKgmQHw
+      POSTGREST_URL: http://supabase-rest:3000
+      PGRST_JWT_SECRET: ee699f7272463aa01c60b0e4ee31fa8fcd220959712c27ba6cb7ea6b3c0b42f9
+      DATABASE_URL: postgres://supabase_storage_admin:adm0418supa@supabase-db:5432/postgres
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: local
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "true"
+    volumes:
+      - ./volumes/storage:/var/lib/storage
+
+  meta:
+    hostname: supabase-meta
+    image: supabase/postgres-meta:v0.96.4
+    restart: unless-stopped
+    networks:
+      - supabase_net
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: supabase-db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: adm0418supa
+
+  studio:
+    hostname: supabase-studio
+    image: supabase/studio:20250317-6955350
+    restart: unless-stopped
+    networks:
+      - supabase_net
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/profile').then((r) => {if(r.status !== 200) throw new Error(r.status)})"]
+      timeout: 10s
+      interval: 5s
+      retries: 3
+    environment:
+      HOSTNAME: 0.0.0.0
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      POSTGRES_PASSWORD: adm0418supa
+      DEFAULT_ORGANIZATION_NAME: rsconsultoria
+      DEFAULT_PROJECT_NAME: supabase
+      SUPABASE_URL: postgresql://supabase:adm0418supa@supabase-db:5432/postgres
+      SUPABASE_PUBLIC_URL: https://supabase.rsconsultoria.pro
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc2MTM5MjAwLCJleHAiOjE5MzM5MDU2MDB9.HhMEGLK_1EW6gSThptEMIQ_KTYGXNtIAGsDnlhyNyaU
+      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NzYxMzkyMDAsImV4cCI6MTkzMzkwNTYwMH0.gh1OXeX5zik96sxr4ZyWkSJpf7h0xBRlkU6hfKgmQHw
+      AUTH_JWT_SECRET: ee699f7272463aa01c60b0e4ee31fa8fcd220959712c27ba6cb7ea6b3c0b42f9
+      DASHBOARD_USERNAME: supabase
+      DASHBOARD_PASSWORD: 0418supa
+      NEXT_PUBLIC_ENABLE_LOGS: "true"
+
+networks:
+  supabase_net:
+    driver: bridge
+
+configs:
+  kong_config:
+    content: |
+      _format_version: "1.1"
+      services:
+        - name: auth-v1-open
+          url: http://supabase-auth:9999/verify
+          routes:
+            - name: auth-v1-open
+              strip_path: true
+              paths:
+                - /auth/v1/verify
+          plugins:
+            - name: cors
+        - name: auth-v1-open-callback
+          url: http://supabase-auth:9999/callback
+          routes:
+            - name: auth-v1-open-callback
+              strip_path: true
+              paths:
+                - /auth/v1/callback
+          plugins:
+            - name: cors
+        - name: auth-v1-open-authorize
+          url: http://supabase-auth:9999/authorize
+          routes:
+            - name: auth-v1-open-authorize
+              strip_path: true
+              paths:
+                - /auth/v1/authorize
+          plugins:
+            - name: cors
+        - name: auth-v1
+          url: http://supabase-auth:9999/
+          routes:
+            - name: auth-v1-all
+              strip_path: true
+              paths:
+                - /auth/v1/
+          plugins:
+            - name: cors
+            - name: key-auth
+              config:
+                hide_credentials: false
+        - name: rest-v1
+          url: http://supabase-rest:3000/
+          routes:
+            - name: rest-v1-all
+              strip_path: true
+              paths:
+                - /rest/v1/
+          plugins:
+            - name: cors
+            - name: key-auth
+              config:
+                hide_credentials: false
+        - name: graphql-v1
+          url: http://supabase-rest:3000/rpc/graphql
+          routes:
+            - name: graphql-v1-all
+              strip_path: true
+              paths:
+                - /graphql/v1
+          plugins:
+            - name: cors
+            - name: key-auth
+              config:
+                hide_credentials: false
+        - name: realtime-v1
+          url: http://supabase-realtime:4000/socket/
+          routes:
+            - name: realtime-v1-all
+              strip_path: true
+              paths:
+                - /realtime/v1/
+          plugins:
+            - name: cors
+            - name: key-auth
+              config:
+                hide_credentials: false
+        - name: storage-v1
+          url: http://supabase-storage:5000/
+          routes:
+            - name: storage-v1-all
+              strip_path: true
+              paths:
+                - /storage/v1/
+          plugins:
+            - name: cors
+        - name: meta
+          url: http://supabase-meta:8080/
+          routes:
+            - name: meta-all
+              strip_path: true
+              paths:
+                - /pg/
+          plugins:
+            - name: key-auth
+              config:
+                hide_credentials: false
+      consumers:
+        - username: anon
+          keyauth_credentials:
+            - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc2MTM5MjAwLCJleHAiOjE5MzM5MDU2MDB9.HhMEGLK_1EW6gSThptEMIQ_KTYGXNtIAGsDnlhyNyaU
+        - username: service_role
+          keyauth_credentials:
+            - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NzYxMzkyMDAsImV4cCI6MTkzMzkwNTYwMH0.gh1OXeX5zik96sxr4ZyWkSJpf7h0xBRlkU6hfKgmQHw
