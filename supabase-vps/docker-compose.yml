@@ -63,6 +63,10 @@ services:
       GOTRUE_RATE_LIMIT_VERIFY: 30
       GOTRUE_RATE_LIMIT_TOKEN_REFRESH: 150
       GOTRUE_RATE_LIMIT_SSO: 30
+      API_EXTERNAL_URL: https://supabase.rsconsultoria.pro
+      GOTRUE_SITE_URL: https://omnicore.rsconsultoria.pro
+      GOTRUE_URI_ALLOW_LIST: https://omnicore.rsconsultoria.pro,https://supabase.rsconsultoria.pro
+      GOTRUE_CORS_ALLOWED_ORIGINS: https://omnicore.rsconsultoria.pro,https://supabase.rsconsultoria.pro
 
   rest:
     hostname: supabase-rest
