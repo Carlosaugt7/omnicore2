@@ -196,6 +196,25 @@ configs:
                 - /auth/v1/verify
           plugins:
             - name: cors
+              config:
+                origins:
+                  - https://omnicore.rsconsultoria.pro
+                  - https://supabase.rsconsultoria.pro
+                methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                  - PATCH
+                headers:
+                  - Accept
+                  - Authorization
+                  - Content-Type
+                  - apikey
+                  - x-client-info
+                credentials: true
+                max_age: 3600
         - name: auth-v1-open-callback
           url: http://supabase-auth:9999/callback
           routes:
@@ -205,6 +224,21 @@ configs:
                 - /auth/v1/callback
           plugins:
             - name: cors
+              config:
+                origins:
+                  - https://omnicore.rsconsultoria.pro
+                  - https://supabase.rsconsultoria.pro
+                methods:
+                  - GET
+                  - POST
+                  - OPTIONS
+                headers:
+                  - Accept
+                  - Authorization
+                  - Content-Type
+                  - apikey
+                credentials: true
+                max_age: 3600
         - name: auth-v1-open-authorize
           url: http://supabase-auth:9999/authorize
           routes:
@@ -214,6 +248,21 @@ configs:
                 - /auth/v1/authorize
           plugins:
             - name: cors
+              config:
+                origins:
+                  - https://omnicore.rsconsultoria.pro
+                  - https://supabase.rsconsultoria.pro
+                methods:
+                  - GET
+                  - POST
+                  - OPTIONS
+                headers:
+                  - Accept
+                  - Authorization
+                  - Content-Type
+                  - apikey
+                credentials: true
+                max_age: 3600
         - name: auth-v1
           url: http://supabase-auth:9999/
           routes:
@@ -223,6 +272,25 @@ configs:
                 - /auth/v1/
           plugins:
             - name: cors
+              config:
+                origins:
+                  - https://omnicore.rsconsultoria.pro
+                  - https://supabase.rsconsultoria.pro
+                methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                  - PATCH
+                headers:
+                  - Accept
+                  - Authorization
+                  - Content-Type
+                  - apikey
+                  - x-client-info
+                credentials: true
+                max_age: 3600
             - name: key-auth
               config:
                 hide_credentials: false
@@ -235,6 +303,26 @@ configs:
                 - /rest/v1/
           plugins:
             - name: cors
+              config:
+                origins:
+                  - https://omnicore.rsconsultoria.pro
+                  - https://supabase.rsconsultoria.pro
+                methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                  - PATCH
+                headers:
+                  - Accept
+                  - Authorization
+                  - Content-Type
+                  - apikey
+                  - x-client-info
+                  - Prefer
+                credentials: true
+                max_age: 3600
             - name: key-auth
               config:
                 hide_credentials: false
@@ -247,6 +335,21 @@ configs:
                 - /graphql/v1
           plugins:
             - name: cors
+              config:
+                origins:
+                  - https://omnicore.rsconsultoria.pro
+                  - https://supabase.rsconsultoria.pro
+                methods:
+                  - GET
+                  - POST
+                  - OPTIONS
+                headers:
+                  - Accept
+                  - Authorization
+                  - Content-Type
+                  - apikey
+                credentials: true
+                max_age: 3600
             - name: key-auth
               config:
                 hide_credentials: false
@@ -259,6 +362,21 @@ configs:
                 - /realtime/v1/
           plugins:
             - name: cors
+              config:
+                origins:
+                  - https://omnicore.rsconsultoria.pro
+                  - https://supabase.rsconsultoria.pro
+                methods:
+                  - GET
+                  - POST
+                  - OPTIONS
+                headers:
+                  - Accept
+                  - Authorization
+                  - Content-Type
+                  - apikey
+                credentials: true
+                max_age: 3600
             - name: key-auth
               config:
                 hide_credentials: false
@@ -271,6 +389,23 @@ configs:
                 - /storage/v1/
           plugins:
             - name: cors
+              config:
+                origins:
+                  - https://omnicore.rsconsultoria.pro
+                  - https://supabase.rsconsultoria.pro
+                methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                headers:
+                  - Accept
+                  - Authorization
+                  - Content-Type
+                  - apikey
+                credentials: true
+                max_age: 3600
         - name: meta
           url: http://supabase-meta:8080/
           routes:
