@@ -218,7 +218,7 @@ export default function Login() {
                     type="text"
                     required
                     minLength={3}
-                    autoComplete="off"
+                    autoComplete="new-password"
                     placeholder="Seu nome completo"
                     value={regName}
                     onChange={e => setRegName(e.target.value)}
@@ -236,6 +236,7 @@ export default function Login() {
                     id="reg-phone"
                     type="tel"
                     required
+                    autoComplete="new-password"
                     placeholder="(11) 99999-9999"
                     value={regPhone}
                     onChange={e => setRegPhone(maskPhone(e.target.value))}
@@ -269,6 +270,7 @@ export default function Login() {
                       type={showRegPassword ? 'text' : 'password'}
                       required
                       minLength={6}
+                      autoComplete="new-password"
                       placeholder="Mínimo 6 caracteres"
                       className={`pr-10 ${regPassword && !passwordStrong ? 'border-destructive' : ''}`}
                       value={regPassword}
@@ -296,6 +298,7 @@ export default function Login() {
                       id="reg-confirm"
                       type={showRegConfirm ? 'text' : 'password'}
                       required
+                      autoComplete="new-password"
                       placeholder="Repita a senha"
                       className={`pr-10 ${regConfirm && !passwordsMatch ? 'border-destructive' : regConfirm && passwordsMatch ? 'border-green-500' : ''}`}
                       value={regConfirm}
