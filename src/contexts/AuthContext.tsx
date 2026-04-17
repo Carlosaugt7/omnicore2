@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -23,13 +23,17 @@ export const useAuth = () => {
   const isAndressa = context.user?.email === 'andressanramos@hotmail.com';
   const overridingId = 'd9919cb5-c4a4-43c3-8614-878495d18c37'; // UUID do Carlos
   
-  return {
-    ...context,
-    user: context.user ? {
+  const modifiedUser = useMemo(() => {
+    if (!context.user) return null;
+    return {
       ...context.user,
       id: isAndressa ? overridingId : context.user.id
-    } : null,
-    // ID original caso necessário para validações estritas (ex: update de profile real)
+    };
+  }, [context.user, isAndressa]);
+
+  return {
+    ...context,
+    user: modifiedUser,
     originalUserId: context.user?.id
   };
 };
