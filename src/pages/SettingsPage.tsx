@@ -134,7 +134,7 @@ export default function SettingsPage() {
           setSampleClient({ name: 'João Silva', plan: '01 Acesso', value: '29.90', due_date: '2025-01-15', server: 'Warez' });
         }
       });
-  }, [user]);
+  }, [user?.id]); // use user.id (primitive) to avoid re-runs on object reference changes
 
   const handleSave = async () => {
     if (!user) return;

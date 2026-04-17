@@ -45,7 +45,7 @@ export default function Clients() {
     if (data) setClients(data);
   };
 
-  useEffect(() => { loadClients(); }, [user]);
+  useEffect(() => { loadClients(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const servers = useMemo(() => {
     const set = new Set(clients.map(c => c.server).filter(Boolean) as string[]);

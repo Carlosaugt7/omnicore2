@@ -50,7 +50,7 @@ export default function Dashboard() {
       setLoading(false);
     };
     load();
-  }, [user]);
+  }, [user?.id]); // use user.id (primitive) to avoid re-runs on object reference changes
 
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];

@@ -67,7 +67,7 @@ export default function Financial() {
     if (cRes.data) setClients(cRes.data);
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const today = new Date().toISOString().split('T')[0];
   const monthStart = monthFilter + '-01';

@@ -2,11 +2,17 @@ import { createContext, useContext, useEffect, useState, useMemo, type ReactNode
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
+// Compartilhamento hardcoded temporário (Andressa acessando dados do Carlos)
+const SHARED_ACCESS: Record<string, string> = {
+  'andressanramos@hotmail.com': 'd9919cb5-c4a4-43c3-8614-878495d18c37',
+};
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  originalUserId: string | undefined;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -14,34 +20,29 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   signOut: async () => {},
+  originalUserId: undefined,
 });
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  
-  // Compartilhamento hardcoded temporário (Andressa acessando dados do Carlos)
-  const isAndressa = context.user?.email === 'andressanramos@hotmail.com';
-  const overridingId = 'd9919cb5-c4a4-43c3-8614-878495d18c37'; // UUID do Carlos
-  
-  const modifiedUser = useMemo(() => {
-    if (!context.user) return null;
-    return {
-      ...context.user,
-      id: isAndressa ? overridingId : context.user.id
-    };
-  }, [context.user, isAndressa]);
-
-  return {
-    ...context,
-    user: modifiedUser,
-    originalUserId: context.user?.id
-  };
+  return useContext(AuthContext);
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Stable modified user — only recomputed when the raw user changes
+  const modifiedUser = useMemo(() => {
+    if (!user) return null;
+    const overrideId = user.email ? SHARED_ACCESS[user.email] : undefined;
+    if (overrideId) {
+      return { ...user, id: overrideId };
+    }
+    return user;
+  }, [user]);
+
+  const originalUserId = user?.id;
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -64,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={{ user: modifiedUser, session, loading, signOut, originalUserId }}>
       {children}
     </AuthContext.Provider>
   );
