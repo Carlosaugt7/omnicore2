@@ -17,6 +17,7 @@ import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
 
 type Client = Database['public']['Tables']['clients']['Row'];
+type Service = Database['public']['Tables']['services']['Row'];
 
 const statusColors: Record<string, string> = {
   ativo: 'bg-green-500/10 text-green-500',
@@ -31,6 +32,7 @@ type SortDir = 'asc' | 'desc';
 export default function Clients() {
   const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [serverFilter, setServerFilter] = useState('all');
@@ -40,13 +42,72 @@ export default function Clients() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Controlled form fields
+  const [formServer, setFormServer] = useState('');
+  const [formPlan, setFormPlan] = useState('');
+  const [formValue, setFormValue] = useState('');
+
   const loadClients = async () => {
     if (!user) return;
     const { data } = await supabase.from('clients').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     if (data) setClients(data);
   };
 
-  useEffect(() => { loadClients(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadServices = async () => {
+    if (!user) return;
+    const { data } = await supabase.from('services').select('*').eq('user_id', user.id).order('server_name');
+    if (data) setServices(data);
+  };
+
+  useEffect(() => {
+    loadClients();
+    loadServices();
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Unique server names from services catalog
+  const serviceServers = useMemo(() => {
+    return Array.from(new Set(services.map(s => s.server_name))).sort();
+  }, [services]);
+
+  // Plans available for the selected server
+  const plansForServer = useMemo(() => {
+    if (!formServer) return [];
+    return services.filter(s => s.server_name === formServer);
+  }, [services, formServer]);
+
+  // When server changes: reset plan and value
+  const handleServerChange = (value: string) => {
+    setFormServer(value);
+    setFormPlan('');
+    setFormValue('');
+  };
+
+  // When plan changes: auto-fill value
+  const handlePlanChange = (value: string) => {
+    setFormPlan(value);
+    const service = services.find(s => s.server_name === formServer && s.plan_name === value);
+    setFormValue(service?.value != null ? String(service.value) : '');
+  };
+
+  // Reset form fields when dialog opens/closes
+  const handleDialogChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingClient(null);
+      setFormServer('');
+      setFormPlan('');
+      setFormValue('');
+    }
+  };
+
+  // Pre-fill form when editing
+  const openEdit = (client: Client) => {
+    setEditingClient(client);
+    setFormServer(client.server || '');
+    setFormPlan(client.plan || '');
+    setFormValue(client.value != null ? String(client.value) : '');
+    setDialogOpen(true);
+  };
 
   const servers = useMemo(() => {
     const set = new Set(clients.map(c => c.server).filter(Boolean) as string[]);
@@ -95,9 +156,9 @@ export default function Clients() {
       name: fd.get('name') as string,
       phone: fd.get('phone') as string,
       email: (fd.get('email') as string) || null,
-      server: (fd.get('server') as string) || null,
-      plan: (fd.get('plan') as string) || null,
-      value: fd.get('value') ? parseFloat(fd.get('value') as string) : null,
+      server: formServer || null,
+      plan: formPlan || null,
+      value: formValue ? parseFloat(formValue) : null,
       due_date: (fd.get('due_date') as string) || null,
       status: (fd.get('status') as string) || 'ativo',
       notes: (fd.get('notes') as string) || null,
@@ -112,8 +173,7 @@ export default function Clients() {
       if (error) toast.error(error.message); else toast.success('Cliente adicionado!');
     }
     setLoading(false);
-    setDialogOpen(false);
-    setEditingClient(null);
+    handleDialogChange(false);
     loadClients();
   };
 
@@ -206,7 +266,7 @@ export default function Clients() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Clientes</h1>
-        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingClient(null); }}>
+        <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" />Novo Cliente</Button>
           </DialogTrigger>
@@ -219,9 +279,49 @@ export default function Clients() {
                 <div className="space-y-2"><Label>Nome *</Label><Input name="name" required defaultValue={editingClient?.name || ''} /></div>
                 <div className="space-y-2"><Label>Telefone *</Label><Input name="phone" required defaultValue={editingClient?.phone || ''} placeholder="5511999999999" /></div>
                 <div className="space-y-2"><Label>E-mail</Label><Input name="email" type="email" defaultValue={editingClient?.email || ''} /></div>
-                <div className="space-y-2"><Label>Servidor</Label><Input name="server" defaultValue={editingClient?.server || ''} placeholder="ex: Warez, AzonixPlay" /></div>
-                <div className="space-y-2"><Label>Plano</Label><Input name="plan" defaultValue={editingClient?.plan || ''} placeholder="ex: 01 Acesso" /></div>
-                <div className="space-y-2"><Label>Valor (R$)</Label><Input name="value" type="number" step="0.01" defaultValue={editingClient?.value || ''} /></div>
+
+                {/* Servidor — select com lista do catálogo */}
+                <div className="space-y-2">
+                  <Label>Servidor</Label>
+                  <Select value={formServer} onValueChange={handleServerChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {serviceServers.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Plano — filtrado pelo servidor selecionado */}
+                <div className="space-y-2">
+                  <Label>Plano</Label>
+                  <Select value={formPlan} onValueChange={handlePlanChange} disabled={!formServer}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={formServer ? 'Selecione...' : 'Escolha o servidor'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {plansForServer.map(s => (
+                        <SelectItem key={s.id} value={s.plan_name}>{s.plan_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Valor — preenchido automaticamente, editável */}
+                <div className="space-y-2">
+                  <Label>Valor (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formValue}
+                    onChange={e => setFormValue(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+
                 <div className="space-y-2"><Label>Vencimento</Label><Input name="due_date" type="date" defaultValue={editingClient?.due_date || ''} /></div>
                 <div className="space-y-2">
                   <Label>Status</Label>
@@ -296,7 +396,7 @@ export default function Clients() {
                         <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => { setEditingClient(client); setDialogOpen(true); }}>
+                        <DropdownMenuItem onClick={() => openEdit(client)}>
                           <Pencil className="h-4 w-4 mr-2" />Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMarkAsPaid(client)}>
