@@ -164,13 +164,14 @@ export default function Login() {
 
             {/* ── LOGIN ── */}
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4 mt-4">
+              <form onSubmit={handleLogin} className="space-y-4 mt-4" autoComplete="off">
                 <div className="space-y-2">
                   <Label htmlFor="login-email">E-mail</Label>
                   <Input
                     id="login-email"
                     type="email"
                     required
+                    autoComplete="new-email"
                     placeholder="seu@email.com"
                     value={loginEmail}
                     onChange={e => setLoginEmail(e.target.value)}
@@ -183,6 +184,7 @@ export default function Login() {
                       id="login-password"
                       type={showLoginPassword ? 'text' : 'password'}
                       required
+                      autoComplete="new-password"
                       placeholder="••••••••"
                       className="pr-10"
                       value={loginPassword}
@@ -206,7 +208,7 @@ export default function Login() {
 
             {/* ── CADASTRO ── */}
             <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-4 mt-4">
+              <form onSubmit={handleRegister} className="space-y-4 mt-4" autoComplete="off">
 
                 {/* Nome */}
                 <div className="space-y-2">
@@ -216,6 +218,7 @@ export default function Login() {
                     type="text"
                     required
                     minLength={3}
+                    autoComplete="off"
                     placeholder="Seu nome completo"
                     value={regName}
                     onChange={e => setRegName(e.target.value)}
@@ -250,6 +253,7 @@ export default function Login() {
                     id="reg-email"
                     type="email"
                     required
+                    autoComplete="new-email"
                     placeholder="seu@email.com"
                     value={regEmail}
                     onChange={e => setRegEmail(e.target.value)}
