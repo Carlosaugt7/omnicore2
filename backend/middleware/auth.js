@@ -35,11 +35,18 @@ async function requireAuth(req, res, next) {
 
   // If a userId was provided, it must match the token owner
   if (requestedUserId && requestedUserId !== user.id) {
-    return res.status(403).json({ error: 'Forbidden: userId mismatch' });
+    // Exceção de compartilhamento: Andressa pode atuar como Carlos
+    const isSharedAccess = 
+      user.id === 'd267b748-8f3b-4684-85e9-589dc9a79a93' && // Andressa JWT
+      requestedUserId === 'd9919cb5-c4a4-43c3-8614-878495d18c37'; // Carlos payload ID
+
+    if (!isSharedAccess) {
+      return res.status(403).json({ error: 'Forbidden: userId mismatch' });
+    }
   }
 
-  // Attach verified userId to the request for downstream handlers
-  req.userId = user.id;
+  // Attach the requested userId (which may be Carlos's due to sharing) instead of raw token id
+  req.userId = requestedUserId || user.id;
   next();
 }
 

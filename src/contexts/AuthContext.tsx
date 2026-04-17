@@ -16,7 +16,23 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  
+  // Compartilhamento hardcoded temporário (Andressa acessando dados do Carlos)
+  const isAndressa = context.user?.email === 'andressanramos@hotmail.com';
+  const overridingId = 'd9919cb5-c4a4-43c3-8614-878495d18c37'; // UUID do Carlos
+  
+  return {
+    ...context,
+    user: context.user ? {
+      ...context.user,
+      id: isAndressa ? overridingId : context.user.id
+    } : null,
+    // ID original caso necessário para validações estritas (ex: update de profile real)
+    originalUserId: context.user?.id
+  };
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
