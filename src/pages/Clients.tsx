@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search, MoreHorizontal, Pencil, Trash2, CheckCircle, Send, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
 
 type Client = Database['public']['Tables']['clients']['Row'];
@@ -51,6 +52,11 @@ export default function Clients() {
     const set = new Set(clients.map(c => c.server).filter(Boolean) as string[]);
     return Array.from(set).sort();
   }, [clients]);
+
+  const serverColorMap = useMemo(
+    () => buildServerColorMap(clients.map(c => c.server)),
+    [clients]
+  );
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -277,7 +283,7 @@ export default function Clients() {
               {filtered.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell>{client.server || '-'}</TableCell>
+                  <TableCell><ServerBadge name={client.server} colorMap={serverColorMap} /></TableCell>
                   <TableCell>{client.plan || '-'}</TableCell>
                   <TableCell>{client.value ? `R$ ${Number(client.value).toFixed(2)}` : '-'}</TableCell>
                   <TableCell>{client.due_date || '-'}</TableCell>

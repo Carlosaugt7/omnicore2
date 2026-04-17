@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
 import DataTransfer from '@/components/DataTransfer';
 
@@ -125,6 +126,11 @@ export default function Dashboard() {
       .filter(c => c.due_date && c.due_date >= todayStr && c.due_date <= endStr)
       .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
   }, [clients, todayStr]);
+
+  const serverColorMap = useMemo(
+    () => buildServerColorMap(clients.map(c => c.server)),
+    [clients]
+  );
 
   // Chart data: últimos 6 meses
   const chartData = useMemo(() => {
@@ -297,7 +303,7 @@ export default function Dashboard() {
               {weekDues.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>{c.server || '-'}</TableCell>
+                  <TableCell><ServerBadge name={c.server} colorMap={serverColorMap} /></TableCell>
                   <TableCell>{c.plan || '-'}</TableCell>
                   <TableCell>{c.value ? formatBRL(c.value) : '-'}</TableCell>
                   <TableCell>{c.due_date}</TableCell>
