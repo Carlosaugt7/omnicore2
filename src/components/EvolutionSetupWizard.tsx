@@ -58,15 +58,20 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
 
   const [n8nConfigured, setN8nConfigured] = useState(false);
 
-  // On mount, check if already connected
+  const hasCheckedInitialStatus = useRef(false);
+
+  // Check if already connected once settings are loaded
   useEffect(() => {
     if (settings.evolution_api_url && settings.evolution_api_key && settings.evolution_instance) {
-      checkStatus().then((connected) => {
-        if (connected) setStep(3);
-      });
+      if (!hasCheckedInitialStatus.current) {
+        hasCheckedInitialStatus.current = true;
+        checkStatus().then((connected) => {
+          if (connected) setStep(3);
+        });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [settings.evolution_api_url, settings.evolution_api_key, settings.evolution_instance]);
 
   // Cleanup
   useEffect(() => {
