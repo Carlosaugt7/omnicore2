@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Eye, EyeOff, ArrowRight, Loader2, QrCode, CheckCircle2,
   Wifi, WifiOff, RefreshCw, LogOut, AlertCircle, Smartphone,
-  Globe, Key, Link2,
+  Globe, Key, Link2, Trash2,
 } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -455,12 +455,29 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
             <p className="text-sm text-muted-foreground">Seu WhatsApp está vinculado</p>
           </div>
 
-          {/* Connection badge */}
-          <div className="flex items-center justify-center mb-6">
-            <Badge variant="secondary" className="px-4 py-2 text-sm bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse mr-2" />
-              Conectado — {connectionPhone || 'Número não identificado'}
-            </Badge>
+          {/* Profile Card Conectado */}
+          <div className="flex flex-col p-6 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-xl max-w-sm mx-auto mb-6 mt-4">
+            <div className="flex items-center gap-5 w-full">
+              <div className="relative">
+                <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-zinc-800 bg-zinc-900 flex items-center justify-center">
+                  <span className="text-xl font-bold bg-gradient-to-br from-indigo-400 to-primary text-transparent bg-clip-text">
+                    {settings.evolution_instance ? settings.evolution_instance.slice(0, 2).toUpperCase() : 'W'}
+                  </span>
+                </div>
+                <div className="absolute bottom-0 right-0 h-4 w-4 bg-emerald-500 rounded-full border-2 border-zinc-950"></div>
+              </div>
+              <div className="flex flex-col items-start text-left flex-1 min-w-0">
+                <h4 className="text-lg font-bold text-white tracking-tight truncate w-full">
+                  {settings.evolution_instance || 'Instância'}
+                </h4>
+                <p className="text-zinc-400 font-mono text-sm line-clamp-1 mb-1">
+                  {connectionPhone || 'Processando número...'}
+                </p>
+                <Badge className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30 font-medium px-2.5 py-0.5 mt-0.5">
+                  Conectado
+                </Badge>
+              </div>
+            </div>
           </div>
 
           {/* Actions */}
@@ -476,12 +493,40 @@ export default function EvolutionSetupWizard({ settings, onSettingsChange, onSav
                 <AlertDialogHeader>
                   <AlertDialogTitle>Desconectar WhatsApp?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    O WhatsApp será desconectado da instância. Você precisará escanear o QR Code novamente.
+                    O WhatsApp será desconectado da instância atual. Você precisará escanear o QR Code novamente.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction onClick={handleDisconnect}>Desconectar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20">
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Excluir Instância
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir Instância?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Isso removerá a configuração da instância atual. Será necessário criar uma nova instância depois.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={async () => {
+                    onSettingsChange({ evolution_instance: '' });
+                    await onSave();
+                    setStep(1);
+                    toast.success('Instância excluída com sucesso!');
+                  }}>
+                    Excluir
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
