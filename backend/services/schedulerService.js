@@ -80,6 +80,10 @@ async function runJobForUser(userId) {
         const text = buildMessage(template, client, settings);
         const result = await sendMessage(settings, client.phone, text);
 
+        if (settings.send_pix_separately && settings.pix_key) {
+          await sendMessage(settings, client.phone, settings.pix_key);
+        }
+
         await saveReminderLog({
           userId,
           clientId: client.id,

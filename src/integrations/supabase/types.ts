@@ -240,6 +240,7 @@ export type Database = {
           send_before_due: boolean | null
           send_on_due: boolean | null
           send_overdue: boolean | null
+          send_pix_separately: boolean | null
           template_before: string | null
           template_overdue: string | null
           template_today: string | null
@@ -263,6 +264,7 @@ export type Database = {
           send_before_due?: boolean | null
           send_on_due?: boolean | null
           send_overdue?: boolean | null
+          send_pix_separately?: boolean | null
           template_before?: string | null
           template_overdue?: string | null
           template_today?: string | null
@@ -286,6 +288,7 @@ export type Database = {
           send_before_due?: boolean | null
           send_on_due?: boolean | null
           send_overdue?: boolean | null
+          send_pix_separately?: boolean | null
           template_before?: string | null
           template_overdue?: string | null
           template_today?: string | null

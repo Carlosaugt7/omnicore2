@@ -146,7 +146,15 @@ export default function Reminders() {
       type === 'hoje' ? 'template_today' :
       'template_overdue';
 
-    for (const client of targetClients) {
+    for (let i = 0; i < targetClients.length; i++) {
+      const client = targetClients[i];
+
+      // Add 8-10 seconds delay between clients (skip delay for the first client)
+      if (i > 0) {
+        const delayMs = 8000 + Math.random() * 2000;
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+
       try {
         const result = await api.whatsappSendSingle({
           userId: user.id,

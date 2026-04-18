@@ -75,6 +75,10 @@ router.post('/send-single', requireAuth, async (req, res) => {
   try {
     const result = await sendMessage(settings, phone, text);
 
+    if (settings.send_pix_separately && settings.pix_key) {
+      await sendMessage(settings, phone, settings.pix_key);
+    }
+
     await saveReminderLog({
       userId,
       clientId: client.id,

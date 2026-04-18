@@ -59,6 +59,7 @@ interface Settings {
   send_before_due: boolean;
   send_on_due: boolean;
   send_overdue: boolean;
+  send_pix_separately: boolean;
 }
 
 const INITIAL_SETTINGS: Settings = {
@@ -77,6 +78,7 @@ const INITIAL_SETTINGS: Settings = {
   send_before_due: true,
   send_on_due: true,
   send_overdue: true,
+  send_pix_separately: false,
 };
 
 export default function SettingsPage() {
@@ -110,6 +112,7 @@ export default function SettingsPage() {
             send_before_due: data.send_before_due ?? true,
             send_on_due: data.send_on_due ?? true,
             send_overdue: data.send_overdue ?? true,
+            send_pix_separately: data.send_pix_separately ?? false,
           });
         }
       });
@@ -295,6 +298,17 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings(s => ({ ...s, pix_beneficiary: e.target.value }))}
                   placeholder="Nome que aparece no PIX"
                 />
+              </div>
+              
+              <div className="flex items-center gap-2 pt-2">
+                <Checkbox
+                  id="send_pix_separately"
+                  checked={settings.send_pix_separately}
+                  onCheckedChange={(checked) => setSettings(s => ({ ...s, send_pix_separately: !!checked }))}
+                />
+                <label htmlFor="send_pix_separately" className="text-sm">
+                  Enviar a chave PIX em uma mensagem separada (facilita o "Copiar e Colar")
+                </label>
               </div>
 
               {/* Preview */}
