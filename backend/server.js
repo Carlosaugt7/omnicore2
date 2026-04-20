@@ -9,7 +9,6 @@ const evolutionRoutes = require('./routes/evolution');
 const whatsappRoutes = require('./routes/whatsapp');
 const webhookRoutes = require('./routes/webhooks');
 const schedulerRoutes = require('./routes/scheduler');
-const { runJobForAllUsers } = require('./services/schedulerService');
 
 // ─────────────────────────────────────────────────────────────
 // Validate required environment variables
@@ -111,21 +110,60 @@ app.use((err, _req, res, _next) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// Cron scheduler — runs every day at 09:00
+// Cron scheduler — runs every minute, checks each user's
+// reminder_time in their timezone (TZ env or America/Sao_Paulo)
 // ─────────────────────────────────────────────────────────────
+const { supabase } = require('./lib/supabase');
+const { runJobForUser } = require('./services/schedulerService');
+
+// Timezone used to interpret reminder_time values.
+// Set TZ=America/Sao_Paulo in backend/.env to match Brazil time.
+const SERVER_TZ = process.env.TZ || 'America/Sao_Paulo';
+
+/**
+ * Returns the current HH:MM in the configured timezone.
+ */
+function currentTimeInTZ() {
+  return new Date().toLocaleTimeString('pt-BR', {
+    timeZone: SERVER_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
 function initScheduler() {
-  // "0 9 * * *" = every day at 09:00 server time
-  cron.schedule('0 9 * * *', async () => {
-    console.log('[cron] Daily reminder job started at', new Date().toISOString());
-    try {
-      const results = await runJobForAllUsers();
-      console.log('[cron] Job completed. Results:', JSON.stringify(results, null, 2));
-    } catch (err) {
-      console.error('[cron] Job failed:', err.message);
+  // Runs every minute — checks which users have reminder_time matching now
+  cron.schedule('* * * * *', async () => {
+    const nowHHMM = currentTimeInTZ();
+
+    // Fetch all connected users whose reminder_time matches current minute
+    const { data: usersToRun, error } = await supabase
+      .from('settings')
+      .select('user_id, reminder_time')
+      .eq('evolution_status', 'open')
+      .eq('reminder_time', nowHHMM);
+
+    if (error) {
+      console.error('[cron] Error fetching users to run:', error.message);
+      return;
+    }
+
+    if (!usersToRun || usersToRun.length === 0) return;
+
+    console.log(`[cron] ${nowHHMM} — triggering ${usersToRun.length} user(s)`);
+
+    for (const row of usersToRun) {
+      try {
+        const summary = await runJobForUser(row.user_id);
+        console.log(`[cron] User ${row.user_id}:`, summary);
+      } catch (err) {
+        console.error(`[cron] User ${row.user_id} failed:`, err.message);
+      }
     }
   });
 
-  console.log('[scheduler] Cron job registered — runs daily at 09:00');
+  console.log(`[scheduler] Cron registered — checks every minute (TZ: ${SERVER_TZ})`);
 }
 
 // ─────────────────────────────────────────────────────────────

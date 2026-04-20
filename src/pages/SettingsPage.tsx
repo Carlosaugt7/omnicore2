@@ -352,12 +352,20 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>Horário de disparo automático</Label>
-                <Input
-                  type="time"
-                  value={settings.reminder_time}
-                  onChange={(e) => setSettings(s => ({ ...s, reminder_time: e.target.value }))}
-                  className="w-40"
-                />
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="time"
+                    value={settings.reminder_time}
+                    onChange={(e) => setSettings(s => ({ ...s, reminder_time: e.target.value }))}
+                    className="w-40"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    Horário de Brasília (UTC-3)
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  O backend precisa ter <code className="bg-muted px-1 rounded">TZ=America/Sao_Paulo</code> configurado no <code className="bg-muted px-1 rounded">.env</code>.
+                </p>
               </div>
 
               <div className="space-y-3">
