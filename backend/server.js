@@ -111,59 +111,74 @@ app.use((err, _req, res, _next) => {
 
 // ─────────────────────────────────────────────────────────────
 // Cron scheduler — runs every minute, checks each user's
-// reminder_time in their timezone (TZ env or America/Sao_Paulo)
+// reminder_time against their saved reminder_timezone
 // ─────────────────────────────────────────────────────────────
 const { supabase } = require('./lib/supabase');
 const { runJobForUser } = require('./services/schedulerService');
 
-// Timezone used to interpret reminder_time values.
-// Set TZ=America/Sao_Paulo in backend/.env to match Brazil time.
-const SERVER_TZ = process.env.TZ || 'America/Sao_Paulo';
-
 /**
- * Returns the current HH:MM in the configured timezone.
+ * Returns the current HH:MM in a given IANA timezone.
+ * @param {string} tz - e.g. 'America/Manaus'
  */
-function currentTimeInTZ() {
-  return new Date().toLocaleTimeString('pt-BR', {
-    timeZone: SERVER_TZ,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
+function currentTimeInTZ(tz) {
+  try {
+    return new Date().toLocaleTimeString('pt-BR', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    // Fallback to Sao_Paulo if invalid tz stored
+    return new Date().toLocaleTimeString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
 }
 
 function initScheduler() {
-  // Runs every minute — checks which users have reminder_time matching now
+  // Runs every minute — each user has their own timezone + reminder_time
   cron.schedule('* * * * *', async () => {
-    const nowHHMM = currentTimeInTZ();
 
-    // Fetch all connected users whose reminder_time matches current minute
-    const { data: usersToRun, error } = await supabase
+    // Fetch all connected users with their timezone setting
+    const { data: usersToCheck, error } = await supabase
       .from('settings')
-      .select('user_id, reminder_time')
+      .select('user_id, reminder_time, reminder_timezone')
       .eq('evolution_status', 'open')
-      .eq('reminder_time', nowHHMM);
+      .not('reminder_time', 'is', null);
 
     if (error) {
-      console.error('[cron] Error fetching users to run:', error.message);
+      console.error('[cron] Error fetching users:', error.message);
       return;
     }
 
-    if (!usersToRun || usersToRun.length === 0) return;
+    if (!usersToCheck || usersToCheck.length === 0) return;
 
-    console.log(`[cron] ${nowHHMM} — triggering ${usersToRun.length} user(s)`);
+    // For each user, check if their local time matches their reminder_time
+    const toRun = usersToCheck.filter(row => {
+      const tz = row.reminder_timezone || 'America/Sao_Paulo';
+      const nowHHMM = currentTimeInTZ(tz);
+      return nowHHMM === row.reminder_time;
+    });
 
-    for (const row of usersToRun) {
+    if (toRun.length === 0) return;
+
+    console.log(`[cron] Triggering ${toRun.length} user(s)`);
+
+    for (const row of toRun) {
       try {
         const summary = await runJobForUser(row.user_id);
-        console.log(`[cron] User ${row.user_id}:`, summary);
+        console.log(`[cron] User ${row.user_id} (${row.reminder_timezone || 'America/Sao_Paulo'} ${row.reminder_time}):`, summary);
       } catch (err) {
         console.error(`[cron] User ${row.user_id} failed:`, err.message);
       }
     }
   });
 
-  console.log(`[scheduler] Cron registered — checks every minute (TZ: ${SERVER_TZ})`);
+  console.log('[scheduler] Cron registered — checks every minute per user timezone');
 }
 
 // ─────────────────────────────────────────────────────────────

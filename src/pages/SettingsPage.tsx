@@ -53,6 +53,7 @@ interface Settings {
   pix_key_type: string;
   pix_beneficiary: string;
   reminder_time: string;
+  reminder_timezone: string;
   template_before: string;
   template_today: string;
   template_overdue: string;
@@ -61,6 +62,23 @@ interface Settings {
   send_overdue: boolean;
   send_pix_separately: boolean;
 }
+
+const BRAZIL_TIMEZONES = [
+  { value: 'America/Sao_Paulo',      label: 'Brasília / São Paulo (UTC-3)',  utc: 'UTC-3' },
+  { value: 'America/Manaus',         label: 'Manaus / Cuiabá (UTC-4)',       utc: 'UTC-4' },
+  { value: 'America/Rio_Branco',     label: 'Rio Branco / Acre (UTC-5)',     utc: 'UTC-5' },
+  { value: 'America/Noronha',        label: 'Fernando de Noronha (UTC-2)',   utc: 'UTC-2' },
+  { value: 'America/Belem',          label: 'Belém / Fortaleza (UTC-3)',     utc: 'UTC-3' },
+  { value: 'America/Fortaleza',      label: 'Fortaleza (UTC-3)',             utc: 'UTC-3' },
+  { value: 'America/Recife',         label: 'Recife (UTC-3)',                utc: 'UTC-3' },
+  { value: 'America/Maceio',         label: 'Maceió / Salvador (UTC-3)',     utc: 'UTC-3' },
+  { value: 'America/Porto_Velho',    label: 'Porto Velho (UTC-4)',           utc: 'UTC-4' },
+  { value: 'America/Boa_Vista',      label: 'Boa Vista (UTC-4)',             utc: 'UTC-4' },
+  { value: 'America/Campo_Grande',   label: 'Campo Grande (UTC-4/-3)',       utc: 'UTC-4' },
+  { value: 'America/Cuiaba',         label: 'Cuiabá (UTC-4/-3)',             utc: 'UTC-4' },
+  { value: 'America/Porto_Acre',     label: 'Porto Acre (UTC-5)',            utc: 'UTC-5' },
+  { value: 'Europe/Lisbon',          label: 'Lisboa / Portugal (UTC+0/+1)',  utc: 'UTC+0' },
+];
 
 const INITIAL_SETTINGS: Settings = {
   evolution_api_url: '',
@@ -72,6 +90,7 @@ const INITIAL_SETTINGS: Settings = {
   pix_key_type: 'cpf',
   pix_beneficiary: '',
   reminder_time: '09:00',
+  reminder_timezone: 'America/Sao_Paulo',
   template_before: DEFAULT_TEMPLATE_BEFORE,
   template_today: DEFAULT_TEMPLATE_TODAY,
   template_overdue: DEFAULT_TEMPLATE_OVERDUE,
@@ -106,6 +125,7 @@ export default function SettingsPage() {
             pix_key_type: data.pix_key_type || 'cpf',
             pix_beneficiary: data.pix_beneficiary || '',
             reminder_time: data.reminder_time || '09:00',
+            reminder_timezone: (data as Record<string, unknown>).reminder_timezone as string || 'America/Sao_Paulo',
             template_before: data.template_before || DEFAULT_TEMPLATE_BEFORE,
             template_today: data.template_today || DEFAULT_TEMPLATE_TODAY,
             template_overdue: data.template_overdue || DEFAULT_TEMPLATE_OVERDUE,
@@ -350,22 +370,46 @@ export default function SettingsPage() {
               <CardDescription>Configure horários e regras de disparo automático</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label>Horário de disparo automático</Label>
-                <div className="flex items-center gap-3">
-                  <Input
-                    type="time"
-                    value={settings.reminder_time}
-                    onChange={(e) => setSettings(s => ({ ...s, reminder_time: e.target.value }))}
-                    className="w-40"
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    Horário de Brasília (UTC-3)
-                  </span>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Fuso horário</Label>
+                  <select
+                    value={settings.reminder_timezone}
+                    onChange={(e) => setSettings(s => ({ ...s, reminder_timezone: e.target.value }))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {BRAZIL_TIMEZONES.map(tz => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  O backend precisa ter <code className="bg-muted px-1 rounded">TZ=America/Sao_Paulo</code> configurado no <code className="bg-muted px-1 rounded">.env</code>.
-                </p>
+
+                <div className="space-y-2">
+                  <Label>Horário de disparo automático</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="time"
+                      value={settings.reminder_time}
+                      onChange={(e) => setSettings(s => ({ ...s, reminder_time: e.target.value }))}
+                      className="w-40"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {BRAZIL_TIMEZONES.find(tz => tz.value === settings.reminder_timezone)?.utc || ''}
+                      {' — Agora são '}
+                      <strong>
+                        {new Date().toLocaleTimeString('pt-BR', {
+                          timeZone: settings.reminder_timezone,
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })}
+                      </strong>
+                      {' no fuso selecionado'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-3">
