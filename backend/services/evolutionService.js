@@ -104,14 +104,17 @@ async function saveReminderLog({
  * @returns {Promise<boolean>}
  */
 async function alreadySentToday(clientId, templateType) {
-  const today = new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const tzDateString = d.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
+  const tzDate = new Date(tzDateString);
+  const today = tzDate.toISOString().split('T')[0];
 
   const { data, error } = await supabase
     .from('reminder_logs')
     .select('id')
     .eq('client_id', clientId)
     .eq('template_type', templateType)
-    .eq('status', 'sent')
+    .eq('status', 'success')
     .gte('sent_at', `${today}T00:00:00.000Z`)
     .lte('sent_at', `${today}T23:59:59.999Z`)
     .limit(1);

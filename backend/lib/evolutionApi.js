@@ -18,14 +18,30 @@ function createEvolutionClient(evolutionUrl, evolutionApiKey) {
 
 /**
  * Formats a phone number to the Evolution API standard (55XXXXXXXXXXX).
- * Removes non-digits, adds country code 55 if missing.
+ * Handles Brazilian JID rules: DDDs > 28 do not include the leading 9 in the JID.
  * @param {string} phone
  * @returns {string}
  */
 function formatPhone(phone) {
-  const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('55') && digits.length >= 12) return digits;
-  return `55${digits}`;
+  let digits = phone.replace(/\D/g, '');
+  
+  // Add 55 if missing
+  if (!digits.startsWith('55') && (digits.length === 10 || digits.length === 11)) {
+    digits = `55${digits}`;
+  }
+
+  // Handle Brazilian numbers (start with 55 and have 12 or 13 digits)
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    const ddd = parseInt(digits.substring(2, 4));
+    const number = digits.substring(4);
+
+    // If it has 9 digits and the DDD is > 28, the leading 9 should be stripped for the JID
+    if (number.length === 9 && ddd > 28) {
+      return `55${ddd}${number.substring(1)}`;
+    }
+  }
+
+  return digits;
 }
 
 /**

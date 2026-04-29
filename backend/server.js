@@ -120,22 +120,29 @@ const { runJobForUser } = require('./services/schedulerService');
  * Returns the current HH:MM in a given IANA timezone.
  * @param {string} tz - e.g. 'America/Manaus'
  */
+/**
+ * Returns the current HH:MM in a given IANA timezone.
+ * @param {string} tz - e.g. 'America/Manaus'
+ */
 function currentTimeInTZ(tz) {
   try {
-    return new Date().toLocaleTimeString('pt-BR', {
-      timeZone: tz,
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz || 'America/Sao_Paulo',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
     });
-  } catch {
-    // Fallback to Sao_Paulo if invalid tz stored
-    return new Date().toLocaleTimeString('pt-BR', {
+    // This returns "HH:MM"
+    return formatter.format(new Date());
+  } catch (err) {
+    // Fallback if TZ is invalid
+    const formatter = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'America/Sao_Paulo',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
     });
+    return formatter.format(new Date());
   }
 }
 

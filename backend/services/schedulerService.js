@@ -8,14 +8,20 @@ const {
 } = require('./evolutionService');
 
 /**
- * Returns a date string (YYYY-MM-DD) offset by `days` from today.
+ * Returns a date string (YYYY-MM-DD) offset by `days` from today, using local Brazilian timezone.
  * @param {number} days - Positive = future, negative = past
  * @returns {string}
  */
 function getDateOffset(days) {
   const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split('T')[0];
+  const tzDateString = d.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
+  const tzDate = new Date(tzDateString);
+  tzDate.setDate(tzDate.getDate() + days);
+  
+  const year = tzDate.getFullYear();
+  const month = String(tzDate.getMonth() + 1).padStart(2, '0');
+  const day = String(tzDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -97,7 +103,8 @@ async function runJobForUser(userId) {
         summary.sent++;
       } catch (err) {
         summary.failed++;
-        summary.errors.push(`Client ${client.id} (${client.name}): ${err.message}`);
+        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+        summary.errors.push(`Client ${client.id} (${client.name}): ${errorMsg}`);
 
         await saveReminderLog({
           userId,
@@ -106,7 +113,7 @@ async function runJobForUser(userId) {
           phone: client.phone,
           templateType: type,
           status: 'failed',
-          errorMessage: err.message,
+          errorMessage: errorMsg,
         });
       }
     }

@@ -35,6 +35,11 @@ const statusColors: Record<string, string> = {
   success: 'bg-green-500/10 text-green-500',
   failed: 'bg-red-500/10 text-red-500',
   pending: 'bg-yellow-500/10 text-yellow-500',
+  ativo: 'bg-green-500/10 text-green-500',
+  'à vencer': 'bg-yellow-500/10 text-yellow-500',
+  vencido: 'bg-red-500/10 text-red-500',
+  suspenso: 'bg-red-500/10 text-red-500',
+  cancelado: 'bg-muted text-muted-foreground',
 };
 
 function formatDate(d: string) {
@@ -82,9 +87,33 @@ export default function Reminders() {
     });
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const getLocalDateStr = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const now = new Date();
+  const today = getLocalDateStr(now);
+  
+  const tomorrowDate = new Date(now);
+  tomorrowDate.setDate(now.getDate() + 1);
+  const tomorrow = getLocalDateStr(tomorrowDate);
+  
+  const yesterdayDate = new Date(now);
+  yesterdayDate.setDate(now.getDate() - 1);
+  const yesterday = getLocalDateStr(yesterdayDate);
+
+  const getDisplayStatus = (client: Client) => {
+    if (client.status === 'cancelado') return 'cancelado';
+    if (client.status === 'suspenso') return 'suspenso';
+    if (!client.due_date) return client.status;
+    
+    if (client.due_date < today) return 'vencido';
+    if (client.due_date === today || client.due_date === tomorrow) return 'à vencer';
+    return 'ativo';
+  };
 
   const tabs = useMemo(() => [
     {
@@ -92,18 +121,18 @@ export default function Reminders() {
       label: 'Vence Amanhã',
       templateType: 'antes' as const,
       template: settings.template_before,
-      clients: clients.filter(c => c.due_date === tomorrow && c.status === 'ativo'),
+      clients: clients.filter(c => c.due_date === tomorrow && c.status !== 'cancelado' && c.status !== 'suspenso'),
     },
     {
       id: 'hoje',
       label: 'Vence Hoje',
       templateType: 'hoje' as const,
       template: settings.template_today,
-      clients: clients.filter(c => c.due_date === today && c.status === 'ativo'),
+      clients: clients.filter(c => c.due_date === today && c.status !== 'cancelado' && c.status !== 'suspenso'),
     },
     {
       id: 'vencido',
-      label: 'Venceu Ontem',
+      label: 'Vencidos',
       templateType: 'vencido' as const,
       template: settings.template_overdue,
       clients: clients.filter(c => c.due_date !== null && c.due_date <= yesterday && c.status !== 'cancelado'),
@@ -241,10 +270,9 @@ export default function Reminders() {
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">{client.name}</CardTitle>
-                        <Badge variant="secondary" className={
-                          client.status === 'ativo' ? 'bg-green-500/10 text-green-500' :
-                          client.status === 'vencido' ? 'bg-red-500/10 text-red-500' : ''
-                        }>{client.status}</Badge>
+                        <Badge variant="secondary" className={statusColors[getDisplayStatus(client)] || ''}>
+                          {getDisplayStatus(client)}
+                        </Badge>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">

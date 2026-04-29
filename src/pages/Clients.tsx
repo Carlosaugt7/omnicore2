@@ -21,9 +21,34 @@ type Service = Database['public']['Tables']['services']['Row'];
 
 const statusColors: Record<string, string> = {
   ativo: 'bg-green-500/10 text-green-500',
+  'à vencer': 'bg-yellow-500/10 text-yellow-500',
   vencido: 'bg-red-500/10 text-red-500',
-  suspenso: 'bg-yellow-500/10 text-yellow-500',
+  suspenso: 'bg-red-500/10 text-red-500',
   cancelado: 'bg-muted text-muted-foreground',
+};
+
+const getLocalDateStr = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDisplayStatus = (client: Client) => {
+  if (client.status === 'cancelado') return 'cancelado';
+  if (client.status === 'suspenso') return 'suspenso';
+  if (!client.due_date) return client.status;
+  
+  const now = new Date();
+  const today = getLocalDateStr(now);
+  
+  const tomorrowDate = new Date(now);
+  tomorrowDate.setDate(now.getDate() + 1);
+  const tomorrow = getLocalDateStr(tomorrowDate);
+  
+  if (client.due_date < today) return 'vencido';
+  if (client.due_date === today || client.due_date === tomorrow) return 'à vencer';
+  return 'ativo';
 };
 
 type SortKey = 'name' | 'due_date' | 'value';
@@ -131,7 +156,8 @@ export default function Clients() {
   const filtered = useMemo(() => {
     let result = clients.filter(c => {
       const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search);
-      const matchStatus = statusFilter === 'all' || c.status === statusFilter;
+      const displayStatus = getDisplayStatus(c);
+      const matchStatus = statusFilter === 'all' || displayStatus === statusFilter;
       const matchServer = serverFilter === 'all' || c.server === serverFilter;
       return matchSearch && matchStatus && matchServer;
     });
@@ -352,6 +378,7 @@ export default function Clients() {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="à vencer">À Vencer</SelectItem>
                 <SelectItem value="vencido">Vencido</SelectItem>
                 <SelectItem value="suspenso">Suspenso</SelectItem>
                 <SelectItem value="cancelado">Cancelado</SelectItem>
@@ -388,7 +415,7 @@ export default function Clients() {
                   <TableCell>{client.value ? `R$ ${Number(client.value).toFixed(2)}` : '-'}</TableCell>
                   <TableCell>{client.due_date || '-'}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={statusColors[client.status] || ''}>{client.status}</Badge>
+                    <Badge variant="secondary" className={statusColors[getDisplayStatus(client)] || ''}>{getDisplayStatus(client)}</Badge>
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
