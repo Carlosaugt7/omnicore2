@@ -23,6 +23,9 @@ services:
     restart: unless-stopped
     networks:
       - supabase_net
+    ports:
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8443:8443"
     depends_on:
       db:
         condition: service_healthy
@@ -50,8 +53,8 @@ services:
       DATABASE_URL: postgres://supabase_auth_admin:adm0418supa@supabase-db:5432/postgres
       GOTRUE_JWT_SECRET: ee699f7272463aa01c60b0e4ee31fa8fcd220959712c27ba6cb7ea6b3c0b42f9
       GOTRUE_SITE_URL: https://omnicore.rsconsultoria.pro
-      GOTRUE_URI_ALLOW_LIST: https://omnicore.rsconsultoria.pro,https://supabase.rsconsultoria.pro
-      GOTRUE_CORS_ALLOWED_ORIGINS: https://omnicore.rsconsultoria.pro,https://supabase.rsconsultoria.pro
+      GOTRUE_URI_ALLOW_LIST: https://omnicore.rsconsultoria.pro,https://api.rsconsultoria.pro
+      GOTRUE_CORS_ALLOWED_ORIGINS: https://omnicore.rsconsultoria.pro,https://api.rsconsultoria.pro
       API_EXTERNAL_URL: https://api.rsconsultoria.pro
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -172,7 +175,7 @@ services:
       DEFAULT_ORGANIZATION_NAME: rsconsultoria
       DEFAULT_PROJECT_NAME: supabase
       SUPABASE_URL: postgresql://supabase:adm0418supa@supabase-db:5432/postgres
-      SUPABASE_PUBLIC_URL: https://supabase.rsconsultoria.pro
+      SUPABASE_PUBLIC_URL: https://api.rsconsultoria.pro
       SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc2MTM5MjAwLCJleHAiOjE5MzM5MDU2MDB9.HhMEGLK_1EW6gSThptEMIQ_KTYGXNtIAGsDnlhyNyaU
       SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NzYxMzkyMDAsImV4cCI6MTkzMzkwNTYwMH0.gh1OXeX5zik96sxr4ZyWkSJpf7h0xBRlkU6hfKgmQHw
       AUTH_JWT_SECRET: ee699f7272463aa01c60b0e4ee31fa8fcd220959712c27ba6cb7ea6b3c0b42f9
@@ -201,7 +204,7 @@ configs:
               config:
                 origins:
                   - https://omnicore.rsconsultoria.pro
-                  - https://supabase.rsconsultoria.pro
+                  - https://api.rsconsultoria.pro
                 methods:
                   - GET
                   - POST
@@ -229,7 +232,7 @@ configs:
               config:
                 origins:
                   - https://omnicore.rsconsultoria.pro
-                  - https://supabase.rsconsultoria.pro
+                  - https://api.rsconsultoria.pro
                 methods:
                   - GET
                   - POST
@@ -253,7 +256,7 @@ configs:
               config:
                 origins:
                   - https://omnicore.rsconsultoria.pro
-                  - https://supabase.rsconsultoria.pro
+                  - https://api.rsconsultoria.pro
                 methods:
                   - GET
                   - POST
@@ -277,7 +280,7 @@ configs:
               config:
                 origins:
                   - https://omnicore.rsconsultoria.pro
-                  - https://supabase.rsconsultoria.pro
+                  - https://api.rsconsultoria.pro
                 methods:
                   - GET
                   - POST
@@ -308,7 +311,7 @@ configs:
               config:
                 origins:
                   - https://omnicore.rsconsultoria.pro
-                  - https://supabase.rsconsultoria.pro
+                  - https://api.rsconsultoria.pro
                 methods:
                   - GET
                   - POST
@@ -340,7 +343,7 @@ configs:
               config:
                 origins:
                   - https://omnicore.rsconsultoria.pro
-                  - https://supabase.rsconsultoria.pro
+                  - https://api.rsconsultoria.pro
                 methods:
                   - GET
                   - POST
