@@ -13,6 +13,7 @@ import Services from "./pages/Services";
 import Financial from "./pages/Financial";
 import Reminders from "./pages/Reminders";
 import MacAddresses from "./pages/MacAddresses";
+import Referrals from "./pages/Referrals";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -42,6 +43,7 @@ const App = () => (
               <Route path="financial" element={<Financial />} />
               <Route path="reminders" element={<Reminders />} />
               <Route path="mac-addresses" element={<MacAddresses />} />
+              <Route path="referrals" element={<Referrals />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />

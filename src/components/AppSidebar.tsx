@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, Server, DollarSign, Bell,
-  MonitorSmartphone, Settings, LogOut, Zap,
+  MonitorSmartphone, Settings, LogOut, Zap, Gift,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -20,6 +20,7 @@ const mainNav = [
   { title: "Financeiro", url: "/dashboard/financial", icon: DollarSign },
   { title: "Lembretes", url: "/dashboard/reminders", icon: Bell },
   { title: "MAC Address", url: "/dashboard/mac-addresses", icon: MonitorSmartphone },
+  { title: "Indicações", url: "/dashboard/referrals", icon: Gift },
 ];
 
 const bottomNav = [

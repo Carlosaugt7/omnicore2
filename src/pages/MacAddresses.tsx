@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -24,6 +24,7 @@ export default function MacAddresses() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MacAddress | null>(null);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
 
   const [formClientName, setFormClientName] = useState('');
   const [formServer, setFormServer] = useState('');
@@ -94,6 +95,13 @@ export default function MacAddresses() {
     if (error) toast.error(error.message); else { toast.success('MAC removido!'); load(); }
   };
 
+  const filteredItems = items.filter((item) => {
+    const query = search.toLowerCase();
+    const clientName = (item.client_name || '').toLowerCase();
+    const mac = (item.mac || '').toLowerCase();
+    return clientName.includes(query) || mac.includes(query);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -131,7 +139,28 @@ export default function MacAddresses() {
       </div>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 space-y-4">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar por cliente ou MAC..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-9"
+            />
+            {search && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setSearch('')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 hover:bg-transparent"
+              >
+                <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+              </Button>
+            )}
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -143,7 +172,7 @@ export default function MacAddresses() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.client_name || '-'}</TableCell>
                   <TableCell className="font-mono text-xs">{item.mac}</TableCell>
@@ -157,8 +186,12 @@ export default function MacAddresses() {
                   </TableCell>
                 </TableRow>
               ))}
-              {items.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum MAC cadastrado</TableCell></TableRow>
+              {filteredItems.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    {search ? 'Nenhum resultado encontrado para a pesquisa' : 'Nenhum MAC cadastrado'}
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>

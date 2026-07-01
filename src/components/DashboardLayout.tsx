@@ -10,6 +10,7 @@ const breadcrumbMap: Record<string, string> = {
   financial: "Financeiro",
   reminders: "Lembretes",
   "mac-addresses": "MAC Address",
+  referrals: "Indicações",
   settings: "Configurações",
 };
 
