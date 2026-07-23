@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # ─────────────────────────────────────────────────────────────
 # OmniCore — Deploy script
 # Uso: ./deploy.sh

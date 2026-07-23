@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 # ─────────────────────────────────────────────────────────────
 # OmniCore — VPS Setup Script
-# Testado em Ubuntu 22.04 / Debian 12
-# Uso: bash vps-setup.sh
+# Testado em Ubuntu 22.04 / Debian 12 / Alpine
+# Uso: sh vps-setup.sh
 # ─────────────────────────────────────────────────────────────
 
 set -e
@@ -16,7 +16,7 @@ echo "📦 Atualizando sistema..."
 apt-get update -qq && apt-get upgrade -y -qq
 
 # ── 2. Instalar Docker ────────────────────────────────────────
-if ! command -v docker &> /dev/null; then
+if ! command -v docker > /dev/null 2>&1; then
   echo "🐳 Instalando Docker..."
   curl -fsSL https://get.docker.com | sh
   systemctl enable docker
@@ -26,7 +26,7 @@ else
 fi
 
 # ── 3. Instalar Docker Compose plugin ────────────────────────
-if ! docker compose version &> /dev/null; then
+if ! docker compose version > /dev/null 2>&1; then
   echo "🐳 Instalando Docker Compose plugin..."
   apt-get install -y docker-compose-plugin
 else
@@ -34,7 +34,7 @@ else
 fi
 
 # ── 4. Instalar Nginx ─────────────────────────────────────────
-if ! command -v nginx &> /dev/null; then
+if ! command -v nginx > /dev/null 2>&1; then
   echo "🌐 Instalando Nginx..."
   apt-get install -y nginx
   systemctl enable nginx
@@ -44,7 +44,7 @@ else
 fi
 
 # ── 5. Instalar Certbot ───────────────────────────────────────
-if ! command -v certbot &> /dev/null; then
+if ! command -v certbot > /dev/null 2>&1; then
   echo "🔒 Instalando Certbot..."
   apt-get install -y certbot python3-certbot-nginx
 else
