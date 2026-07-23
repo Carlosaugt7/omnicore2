@@ -9,6 +9,7 @@ const breadcrumbMap: Record<string, string> = {
   services: "Serviços",
   financial: "Financeiro",
   reminders: "Lembretes",
+  broadcast: "Aviso Geral",
   "mac-addresses": "MAC Address",
   referrals: "Indicações",
   settings: "Configurações",

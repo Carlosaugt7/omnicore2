@@ -5,6 +5,7 @@ const {
   getUserSettings,
   buildMessage,
   sendMessage,
+  sendMediaMessage,
   saveReminderLog,
 } = require('../services/evolutionService');
 const { requireAuth } = require('../middleware/auth');
@@ -99,6 +100,96 @@ router.post('/send-single', requireAuth, async (req, res) => {
       clientName: client.name,
       phone,
       templateType,
+      status: 'failed',
+      errorMessage: errorMsg,
+    });
+
+    return res.status(500).json({ success: false, error: errorMsg });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/whatsapp/send-broadcast
+// Sends a custom broadcast message (text + optional image) to a client
+// Body: { clientId, phone, messageText, imageUrl }
+// ─────────────────────────────────────────────────────────────
+router.post('/send-broadcast', requireAuth, async (req, res) => {
+  const userId = req.userId;
+  const { clientId, phone, messageText, imageUrl } = req.body;
+
+  if (!clientId || !messageText) {
+    return res.status(400).json({
+      success: false,
+      error: 'clientId and messageText are required',
+    });
+  }
+
+  if (!phone || !/^\+?\d{8,15}$/.test(phone.replace(/[\s\-().]/g, ''))) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid phone number format',
+    });
+  }
+
+  // 1. Fetch user settings
+  let settings;
+  try {
+    settings = await getUserSettings(userId);
+  } catch (err) {
+    return res.status(404).json({ success: false, error: err.message });
+  }
+
+  if (!settings.evolution_api_url || !settings.evolution_api_key || !settings.evolution_instance) {
+    return res.status(400).json({
+      success: false,
+      error: 'Evolution API not configured.',
+    });
+  }
+
+  // 2. Fetch client data (verify ownership)
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('id', clientId)
+    .eq('user_id', userId)
+    .single();
+
+  if (clientError || !client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
+
+  // 3. Build personalized message from messageText
+  const text = buildMessage(messageText, client, settings);
+
+  // 4. Send via Evolution API (media or text)
+  try {
+    let result;
+    if (imageUrl && imageUrl.trim()) {
+      result = await sendMediaMessage(settings, phone, imageUrl.trim(), text);
+    } else {
+      result = await sendMessage(settings, phone, text);
+    }
+
+    await saveReminderLog({
+      userId,
+      clientId: client.id,
+      clientName: client.name,
+      phone,
+      templateType: 'aviso_geral',
+      status: 'success',
+      messageId: result?.key?.id || result?.messageId || null,
+    });
+
+    return res.json({ success: true, messageId: result?.key?.id || null });
+  } catch (err) {
+    const errorMsg = err.response?.data?.message || err.message;
+
+    await saveReminderLog({
+      userId,
+      clientId: client.id,
+      clientName: client.name,
+      phone,
+      templateType: 'aviso_geral',
       status: 'failed',
       errorMessage: errorMsg,
     });

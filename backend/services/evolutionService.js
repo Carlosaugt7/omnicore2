@@ -69,6 +69,37 @@ async function sendMessage(settings, phone, text) {
 }
 
 /**
+ * Sends a WhatsApp media message (image/document) via Evolution API.
+ * @param {object} settings - User settings with evolution credentials
+ * @param {string} phone - Destination phone number (raw)
+ * @param {string} mediaUrl - Image URL or base64
+ * @param {string} caption - Optional text caption
+ * @returns {Promise<object>} Evolution API response
+ */
+async function sendMediaMessage(settings, phone, mediaUrl, caption = '') {
+  const client = createEvolutionClient(
+    settings.evolution_api_url,
+    settings.evolution_api_key
+  );
+
+  const formattedPhone = formatPhone(phone);
+  const number = `${formattedPhone}@s.whatsapp.net`;
+
+  const { data } = await client.post(
+    `/message/sendMedia/${settings.evolution_instance}`,
+    {
+      number,
+      media: mediaUrl,
+      mediatype: 'image',
+      caption: caption || '',
+      fileName: 'aviso_imagem.jpg',
+    }
+  );
+
+  return data;
+}
+
+/**
  * Saves a reminder log entry to Supabase.
  * @param {object} params
  */
@@ -127,6 +158,7 @@ module.exports = {
   getUserSettings,
   buildMessage,
   sendMessage,
+  sendMediaMessage,
   saveReminderLog,
   alreadySentToday,
 };

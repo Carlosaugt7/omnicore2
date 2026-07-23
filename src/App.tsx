@@ -12,6 +12,7 @@ import Clients from "./pages/Clients";
 import Services from "./pages/Services";
 import Financial from "./pages/Financial";
 import Reminders from "./pages/Reminders";
+import Broadcast from "./pages/Broadcast";
 import MacAddresses from "./pages/MacAddresses";
 import Referrals from "./pages/Referrals";
 import SettingsPage from "./pages/SettingsPage";
@@ -42,6 +43,7 @@ const App = () => (
               <Route path="services" element={<Services />} />
               <Route path="financial" element={<Financial />} />
               <Route path="reminders" element={<Reminders />} />
+              <Route path="broadcast" element={<Broadcast />} />
               <Route path="mac-addresses" element={<MacAddresses />} />
               <Route path="referrals" element={<Referrals />} />
               <Route path="settings" element={<SettingsPage />} />

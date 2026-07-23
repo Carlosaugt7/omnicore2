@@ -79,6 +79,19 @@ export const api = {
     return res.json();
   },
 
+  async whatsappSendBroadcast(payload: {
+    clientId: string;
+    phone: string;
+    messageText: string;
+    imageUrl?: string;
+  }) {
+    const res = await backendFetch('/api/whatsapp/send-broadcast', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
   // ── Scheduler ─────────────────────────────────────────────
 
   async schedulerRunNow(userId: string) {
