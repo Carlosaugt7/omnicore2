@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
+import { CLIENT_STATUS_COLORS, CLIENT_STATUS_COLORS_BORDERED } from '@/lib/utils';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 
@@ -28,14 +29,6 @@ interface SendResultLog {
   status: 'pending' | 'sending' | 'success' | 'failed';
   error?: string;
 }
-
-const statusColors: Record<string, string> = {
-  ativo: 'bg-green-500/10 text-green-500 border-green-500/20',
-  vencido: 'bg-red-500/10 text-red-500 border-red-500/20',
-  'à vencer': 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
-  suspenso: 'bg-red-500/10 text-red-500 border-red-500/20',
-  cancelado: 'bg-muted text-muted-foreground',
-};
 
 export default function Broadcast() {
   const { user } = useAuth();
@@ -52,6 +45,7 @@ export default function Broadcast() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [serverFilter, setServerFilter] = useState('all');
 
   // Broadcast Progress Modal State
   const [isBroadcasting, setIsBroadcasting] = useState(false);
@@ -98,9 +92,15 @@ export default function Broadcast() {
         (c.plan && c.plan.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchStatus = statusFilter === 'all' || c.status === statusFilter;
-      return matchSearch && matchStatus;
+      const matchServer = serverFilter === 'all' || c.server === serverFilter;
+      return matchSearch && matchStatus && matchServer;
     });
-  }, [clients, searchQuery, statusFilter]);
+  }, [clients, searchQuery, statusFilter, serverFilter]);
+
+  // Unique servers for filter dropdown
+  const servers = useMemo(() => {
+    return [...new Set(clients.map(c => c.server).filter(Boolean).sort())];
+  }, [clients]);
 
   // Toggle selection for all visible clients
   const allFilteredSelected = useMemo(() => {
@@ -465,7 +465,7 @@ export default function Broadcast() {
               </div>
 
               {/* Filters & Search */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -485,6 +485,17 @@ export default function Broadcast() {
                     <SelectItem value="vencido">Vencidos</SelectItem>
                     <SelectItem value="à vencer">À vencer</SelectItem>
                     <SelectItem value="suspenso">Suspensos</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={serverFilter} onValueChange={setServerFilter}>
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Servidor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os servidores</SelectItem>
+                    {servers.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -542,7 +553,7 @@ export default function Broadcast() {
                             {client.phone}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={`text-[10px] ${statusColors[client.status || ''] || ''}`}>
+                            <Badge variant="outline" className={`text-[10px] ${CLIENT_STATUS_COLORS_BORDERED[client.status || ''] || ''}`}>
                               {client.status || 'ativo'}
                             </Badge>
                           </TableCell>

@@ -1,4 +1,5 @@
 const { supabase } = require('../lib/supabase');
+const { logger } = require('../lib/logger');
 const {
   getUserSettings,
   buildMessage,
@@ -135,19 +136,19 @@ async function runJobForAllUsers() {
     .eq('evolution_status', 'open');
 
   if (error) {
-    console.error('[scheduler] Error fetching active users:', error.message);
+    logger.error({ error }, 'scheduler: error fetching active users');
     return results;
   }
 
-  console.log(`[scheduler] Running job for ${allSettings?.length || 0} connected user(s)`);
+  logger.info({ count: allSettings?.length || 0 }, 'scheduler: running job for connected users');
 
   for (const row of allSettings || []) {
     try {
       results[row.user_id] = await runJobForUser(row.user_id);
-      console.log(`[scheduler] User ${row.user_id}:`, results[row.user_id]);
+      logger.info({ userId: row.user_id, result: results[row.user_id] }, 'scheduler: job completed');
     } catch (err) {
       results[row.user_id] = { error: err.message };
-      console.error(`[scheduler] User ${row.user_id} failed:`, err.message);
+      logger.error({ userId: row.user_id, err }, 'scheduler: user job failed');
     }
   }
 

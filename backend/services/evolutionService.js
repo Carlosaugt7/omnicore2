@@ -1,5 +1,6 @@
 const { supabase } = require('../lib/supabase');
 const { createEvolutionClient, formatPhone } = require('../lib/evolutionApi');
+const { logger } = require('../lib/logger');
 
 /**
  * Fetches the user settings row from Supabase.
@@ -125,7 +126,7 @@ async function saveReminderLog({
     sent_at: new Date().toISOString(),
   });
 
-  if (error) console.error('[reminder_logs] Insert error:', error.message);
+  if (error) logger.error({ clientId, error: error.message }, 'reminder_logs: insert error');
 }
 
 /**

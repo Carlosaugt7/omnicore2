@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -15,41 +16,10 @@ import { Plus, Search, MoreHorizontal, Pencil, Trash2, CheckCircle, Send, ArrowU
 import { toast } from 'sonner';
 import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
+import { getDisplayStatus, CLIENT_STATUS_COLORS } from '@/lib/utils';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Service = Database['public']['Tables']['services']['Row'];
-
-const statusColors: Record<string, string> = {
-  ativo: 'bg-green-500/10 text-green-500',
-  'à vencer': 'bg-yellow-500/10 text-yellow-500',
-  vencido: 'bg-red-500/10 text-red-500',
-  suspenso: 'bg-red-500/10 text-red-500',
-  cancelado: 'bg-muted text-muted-foreground',
-};
-
-const getLocalDateStr = (d: Date) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getDisplayStatus = (client: Client) => {
-  if (client.status === 'cancelado') return 'cancelado';
-  if (client.status === 'suspenso') return 'suspenso';
-  if (!client.due_date) return client.status;
-  
-  const now = new Date();
-  const today = getLocalDateStr(now);
-  
-  const tomorrowDate = new Date(now);
-  tomorrowDate.setDate(now.getDate() + 1);
-  const tomorrow = getLocalDateStr(tomorrowDate);
-  
-  if (client.due_date < today) return 'vencido';
-  if (client.due_date === today || client.due_date === tomorrow) return 'à vencer';
-  return 'ativo';
-};
 
 type SortKey = 'name' | 'due_date' | 'value';
 type SortDir = 'asc' | 'desc';
@@ -66,6 +36,8 @@ export default function Clients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Controlled form fields
   const [formServer, setFormServer] = useState('');
@@ -204,8 +176,11 @@ export default function Clients() {
   };
 
   const handleDelete = async (id: string) => {
+    setDeleting(true);
     const { error } = await supabase.from('clients').delete().eq('id', id);
     if (error) toast.error(error.message); else { toast.success('Cliente removido!'); loadClients(); }
+    setDeleteTarget(null);
+    setDeleting(false);
   };
 
   const handleMarkAsPaid = async (client: Client) => {
@@ -415,7 +390,7 @@ export default function Clients() {
                   <TableCell>{client.value ? `R$ ${Number(client.value).toFixed(2)}` : '-'}</TableCell>
                   <TableCell>{client.due_date || '-'}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={statusColors[getDisplayStatus(client)] || ''}>{getDisplayStatus(client)}</Badge>
+                    <Badge variant="secondary" className={CLIENT_STATUS_COLORS[getDisplayStatus(client)] || ''}>{getDisplayStatus(client)}</Badge>
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -432,7 +407,7 @@ export default function Clients() {
                         <DropdownMenuItem onClick={() => handleSendWhatsApp(client)}>
                           <Send className="h-4 w-4 mr-2" />Enviar WhatsApp
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(client.id)}>
+                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(client)}>
                           <Trash2 className="h-4 w-4 mr-2" />Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -447,6 +422,29 @@ export default function Clients() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Confirmação de exclusão */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o cliente <strong>{deleteTarget?.name}</strong>?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Excluindo...' : 'Sim, excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

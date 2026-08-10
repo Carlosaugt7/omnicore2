@@ -2,13 +2,14 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Gift, Trash2, Users, CheckCircle2, Clock, Award, Check, Sparkles } from 'lucide-react';
+import { Plus, Gift, Trash2, Pencil, Users, CheckCircle2, Clock, Award, Check, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -16,7 +17,7 @@ interface Referral {
   id: string;
   referrer_id: string;
   referred_id: string;
-  status: string; // 'pendente' | 'resgatado'
+  status: string;
   user_id: string;
   created_at: string;
 }
@@ -30,25 +31,56 @@ export default function Referrals() {
   const [clients, setClients] = useState<Client[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingReferral, setEditingReferral] = useState<Referral | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Form states
+  // Form states — novo
   const [formReferrerId, setFormReferrerId] = useState('');
   const [formReferredId, setFormReferredId] = useState('');
+
+  // Form states — edição
+  const [editReferrerId, setEditReferrerId] = useState('');
+  const [editReferredId, setEditReferredId] = useState('');
+  const [editMonth1, setEditMonth1] = useState(false);
+  const [editMonth2, setEditMonth2] = useState(false);
 
   const loadData = async () => {
     if (!user) return;
     setLoading(true);
     try {
       const [refRes, cliRes, txRes] = await Promise.all([
-        supabase.from('referrals').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('clients').select('*').eq('user_id', user.id).order('name', { ascending: true }),
-        supabase.from('transactions').select('*').eq('user_id', user.id).eq('status', 'pago').eq('type', 'renovacao')
+        supabase.from('referrals').select('*').order('created_at', { ascending: false }),
+        supabase.from('clients').select('*').order('name', { ascending: true }),
+        // Conta TODOS os pagamentos (entrada + renovacao), não só renovacao
+        supabase.from('transactions').select('*').eq('status', 'pago')
       ]);
 
-      if (refRes.data) setReferrals(refRes.data as Referral[]);
-      if (cliRes.data) setClients(cliRes.data);
-      if (txRes.data) setTransactions(txRes.data);
+      // Filtra referrals do usuário e do shared access
+      if (refRes.data) {
+        const allRefs = refRes.data as Referral[];
+        setReferrals(allRefs.filter(r => 
+          r.user_id === user.id || 
+          r.user_id === 'd9919cb5-c4a4-43c3-8614-878495d18c37' ||
+          r.user_id === 'd267b748-8f3b-4684-85e9-589dc9a79a93'
+        ));
+      }
+      if (cliRes.data) {
+        const allClients = cliRes.data;
+        setClients(allClients.filter(c => 
+          c.user_id === user.id ||
+          c.user_id === 'd9919cb5-c4a4-43c3-8614-878495d18c37' ||
+          c.user_id === 'd267b748-8f3b-4684-85e9-589dc9a79a93'
+        ));
+      }
+      if (txRes.data) {
+        const allTxs = txRes.data as Transaction[];
+        setTransactions(allTxs.filter(t =>
+          t.user_id === user.id ||
+          t.user_id === 'd9919cb5-c4a4-43c3-8614-878495d18c37' ||
+          t.user_id === 'd267b748-8f3b-4684-85e9-589dc9a79a93'
+        ));
+      }
     } catch (err: any) {
       toast.error(`Erro ao carregar dados: ${err.message}`);
     } finally {
@@ -60,7 +92,7 @@ export default function Referrals() {
     loadData();
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Helper to count payments for a referred client
+  // Conta pagamentos do indicado (todos os tipos: entrada + renovacao)
   const getPaymentsCount = (referredId: string) => {
     return transactions.filter(t => t.client_id === referredId).length;
   };
@@ -90,13 +122,13 @@ export default function Referrals() {
   
   const availableReferreds = useMemo(() => {
     return clients.filter(c => {
-      // Cannot refer oneself
       if (c.id === formReferrerId) return false;
-      // Cannot be referred more than once
       const isAlreadyReferred = referrals.some(r => r.referred_id === c.id);
       return !isAlreadyReferred;
     });
   }, [clients, formReferrerId, referrals]);
+
+  // ── NOVA INDICAÇÃO ────────────────────────────────────────────
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,18 +138,41 @@ export default function Referrals() {
       return;
     }
 
+    const referred = clients.find(c => c.id === formReferredId);
+    if (!referred) {
+      toast.error('Cliente indicado não encontrado.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const { error } = await supabase.from('referrals').insert({
+      // 1. Cria a indicação
+      const { error: refError } = await supabase.from('referrals').insert({
         referrer_id: formReferrerId,
         referred_id: formReferredId,
         status: 'pendente',
         user_id: user.id
       });
+      if (refError) throw refError;
 
-      if (error) throw error;
+      // 2. Cria automaticamente o 1º mês como PAGO
+      const { error: txError } = await supabase.from('transactions').insert({
+        client_id: referred.id,
+        client_name: referred.name,
+        value: referred.value || 0,
+        type: 'entrada',
+        status: 'pago',
+        due_date: referred.due_date || new Date().toISOString().split('T')[0],
+        paid_at: new Date().toISOString(),
+        description: '1º Mês (Indicação)',
+        user_id: user.id,
+      });
+      if (txError) {
+        console.warn('Erro ao criar transação do 1º mês:', txError.message);
+        // Não bloqueia — a indicação já foi criada
+      }
 
-      toast.success('Indicação cadastrada com sucesso!');
+      toast.success('Indicação cadastrada! 1º mês marcado como pago.');
       setDialogOpen(false);
       setFormReferrerId('');
       setFormReferredId('');
@@ -128,6 +183,111 @@ export default function Referrals() {
       setLoading(false);
     }
   };
+
+  // ── EDITAR INDICAÇÃO ──────────────────────────────────────────
+
+  const openEditDialog = (referral: Referral) => {
+    setEditingReferral(referral);
+    setEditReferrerId(referral.referrer_id);
+    setEditReferredId(referral.referred_id);
+    // Carrega estado dos meses pagos
+    const count = getPaymentsCount(referral.referred_id);
+    setEditMonth1(count >= 1);
+    setEditMonth2(count >= 2);
+    setEditDialogOpen(true);
+  };
+
+  const availableEditReferreds = useMemo(() => {
+    return clients.filter(c => {
+      if (c.id === editReferrerId) return false;
+      if (editingReferral && c.id === editingReferral.referred_id) return true; // mantém o atual
+      const isAlreadyReferred = referrals.some(
+        r => r.referred_id === c.id && r.id !== editingReferral?.id
+      );
+      return !isAlreadyReferred;
+    });
+  }, [clients, editReferrerId, referrals, editingReferral]);
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReferral || !user) return;
+    if (!editReferrerId || !editReferredId) {
+      toast.error('Selecione ambos os clientes.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Atualiza a indicação
+      const { error } = await supabase
+        .from('referrals')
+        .update({
+          referrer_id: editReferrerId,
+          referred_id: editReferredId,
+        })
+        .eq('id', editingReferral.id);
+
+      if (error) throw error;
+
+      // 2. Sincroniza meses pagos do cliente indicado
+      const referredClient = clients.find(c => c.id === editReferredId);
+      const currentCount = getPaymentsCount(editReferredId);
+      const targetCount = editMonth2 ? 2 : editMonth1 ? 1 : 0;
+
+      if (targetCount > currentCount && referredClient) {
+        // Precisa criar transações adicionais
+        const toCreate = targetCount - currentCount;
+        const insertRows = [];
+        for (let i = 0; i < toCreate; i++) {
+          insertRows.push({
+            client_id: referredClient.id,
+            client_name: referredClient.name,
+            value: referredClient.value || 0,
+            type: 'renovacao',
+            status: 'pago',
+            due_date: referredClient.due_date || new Date().toISOString().split('T')[0],
+            paid_at: new Date().toISOString(),
+            description: `${currentCount + i + 1}º Mês (Confirmação manual)`,
+            user_id: user.id,
+          });
+        }
+        if (insertRows.length > 0) {
+          const { error: txCreateErr } = await supabase.from('transactions').insert(insertRows);
+          if (txCreateErr) console.warn('Erro ao criar transações:', txCreateErr.message);
+        }
+      } else if (targetCount < currentCount) {
+        // Precisa remover transações excedentes
+        const toRemove = currentCount - targetCount;
+        const { data: excessTxs } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('client_id', editReferredId)
+          .eq('status', 'pago')
+          .order('paid_at', { ascending: false })
+          .limit(toRemove);
+
+        if (excessTxs && excessTxs.length > 0) {
+          const idsToDelete = excessTxs.map(t => t.id);
+          const { error: txDelErr } = await supabase
+            .from('transactions')
+            .delete()
+            .in('id', idsToDelete);
+          if (txDelErr) console.warn('Erro ao remover transações:', txDelErr.message);
+        }
+      }
+
+      toast.success('Indicação atualizada!');
+      setEditDialogOpen(false);
+      setEditingReferral(null);
+      loadData();
+    } catch (err: any) {
+      toast.error(`Erro ao editar indicação: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── RESGATAR BÔNUS ────────────────────────────────────────────
 
   const handleRedeemBonus = async (referral: Referral) => {
     if (!user) return;
@@ -140,28 +300,22 @@ export default function Referrals() {
 
     setLoading(true);
     try {
-      // 1. Calculate new due date (due_date + 30 days)
-      const currentDue = referrer.due_date ? new Date(referrer.due_date) : new Date();
+      const currentDue = referrer.due_date ? new Date(referrer.due_date + 'T12:00:00') : new Date();
       currentDue.setDate(currentDue.getDate() + 30);
       const newDueDate = currentDue.toISOString().split('T')[0];
 
-      // 2. Update referrer client
       const { error: clientError } = await supabase
         .from('clients')
         .update({ due_date: newDueDate, status: 'ativo' })
         .eq('id', referrer.id);
-
       if (clientError) throw clientError;
 
-      // 3. Update referral status
       const { error: referralError } = await supabase
         .from('referrals')
         .update({ status: 'resgatado' })
         .eq('id', referral.id);
-
       if (referralError) throw referralError;
 
-      // 4. Insert transaction entry for tracking
       await supabase.from('transactions').insert({
         client_id: referrer.id,
         client_name: referrer.name,
@@ -170,7 +324,7 @@ export default function Referrals() {
         status: 'pago',
         due_date: referrer.due_date,
         paid_at: new Date().toISOString(),
-        description: `Bônus Indicação - Ref. indicado ID: ${referral.referred_id}`,
+        description: `Bônus Indicação — Ref. indicado ID: ${referral.referred_id}`,
         user_id: user.id,
       });
 
@@ -182,6 +336,8 @@ export default function Referrals() {
       setLoading(false);
     }
   };
+
+  // ── EXCLUIR ───────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
     if (!confirm('Deseja realmente remover esta indicação?')) return;
@@ -250,8 +406,101 @@ export default function Referrals() {
                 </Select>
               </div>
 
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+                O 1º mês será automaticamente marcado como <strong>pago</strong>.
+                O bônus estará disponível após o 2º pagamento.
+              </p>
+
               <Button type="submit" className="w-full mt-4" disabled={loading}>
                 {loading ? 'Salvando...' : 'Salvar Indicação'}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Dialog de Edição ─────────────────────────────────── */}
+        <Dialog open={editDialogOpen} onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) setEditingReferral(null);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Indicação</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEditSubmit} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Quem indicou? (Cliente Indicador)</Label>
+                <Select value={editReferrerId} onValueChange={setEditReferrerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cliente..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableReferrers.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Quem foi indicado? (Novo Cliente)</Label>
+                <Select 
+                  value={editReferredId} 
+                  onValueChange={setEditReferredId}
+                  disabled={!editReferrerId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o indicado..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEditReferreds.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Meses pagos do cliente indicado */}
+              {editingReferral && (
+                <div className="space-y-3 border rounded-lg p-4 bg-muted/20">
+                  <Label className="text-sm font-medium">Meses Pagos (Cliente Indicado)</Label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editMonth1}
+                        onChange={(e) => {
+                          setEditMonth1(e.target.checked);
+                          if (!e.target.checked) setEditMonth2(false);
+                        }}
+                        className="rounded border-gray-300 h-4 w-4"
+                      />
+                      <span className="text-sm">1º Mês</span>
+                      {editMonth1 && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editMonth2}
+                        onChange={(e) => {
+                          setEditMonth2(e.target.checked);
+                          if (e.target.checked) setEditMonth1(true);
+                        }}
+                        disabled={!editMonth1}
+                        className="rounded border-gray-300 h-4 w-4"
+                      />
+                      <span className={`text-sm ${!editMonth1 ? 'text-muted-foreground' : ''}`}>2º Mês</span>
+                      {editMonth2 && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ao marcar/desmarcar, as transações serão criadas ou removidas automaticamente ao salvar.
+                  </p>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full mt-4" disabled={loading}>
+                {loading ? 'Salvando...' : 'Salvar Alterações'}
               </Button>
             </form>
           </DialogContent>
@@ -307,7 +556,7 @@ export default function Referrals() {
                 <TableHead className="text-center">1º Mês</TableHead>
                 <TableHead className="text-center">2º Mês</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-40 text-right">Ações</TableHead>
+                <TableHead className="w-48 text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -351,6 +600,15 @@ export default function Referrals() {
                     <TableCell>{statusBadge}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => openEditDialog(item)}
+                          disabled={loading}
+                          title="Editar indicação"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         {canRedeem && (
                           <Button 
                             variant="outline" 

@@ -15,6 +15,7 @@ import { Play, Save } from 'lucide-react';
 import EvolutionSetupWizard from '@/components/EvolutionSetupWizard';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
+import { replaceMessageVars, LOG_STATUS_COLORS } from '@/lib/utils';
 
 type ReminderLog = Database['public']['Tables']['reminder_logs']['Row'];
 
@@ -193,13 +194,7 @@ export default function SettingsPage() {
 
   const replaceVariables = (template: string) => {
     if (!sampleClient) return template;
-    return template
-      .replace(/\{nome\}/g, sampleClient.name)
-      .replace(/\{plano\}/g, sampleClient.plan)
-      .replace(/\{valor\}/g, sampleClient.value)
-      .replace(/\{vencimento\}/g, sampleClient.due_date)
-      .replace(/\{servidor\}/g, sampleClient.server)
-      .replace(/\{chavePix\}/g, settings.pix_key || 'chave-pix-aqui');
+    return replaceMessageVars(template, sampleClient, settings.pix_key || 'chave-pix-aqui');
   };
 
   const insertVariable = (
@@ -242,12 +237,6 @@ export default function SettingsPage() {
       </div>
     </div>
   );
-
-  const statusLogColors: Record<string, string> = {
-    success: 'bg-green-500/10 text-green-500',
-    failed: 'bg-red-500/10 text-red-500',
-    pending: 'bg-yellow-500/10 text-yellow-500',
-  };
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -470,7 +459,7 @@ export default function SettingsPage() {
                       <TableCell>{log.phone || '-'}</TableCell>
                       <TableCell>{log.template_type || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className={statusLogColors[log.status || ''] || ''}>
+                        <Badge variant="secondary" className={LOG_STATUS_COLORS[log.status || ''] || ''}>
                           {log.status || '-'}
                         </Badge>
                       </TableCell>

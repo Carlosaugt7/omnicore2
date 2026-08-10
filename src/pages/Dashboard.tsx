@@ -12,20 +12,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
 import DataTransfer from '@/components/DataTransfer';
+import { formatBRL, CLIENT_STATUS_COLORS } from '@/lib/utils';
+import { useClients } from '@/hooks/useClients';
+import { useTransactions } from '@/hooks/useTransactions';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Transaction = Database['public']['Tables']['transactions']['Row'];
-
-const statusColors: Record<string, string> = {
-  ativo: 'bg-green-500/10 text-green-500',
-  vencido: 'bg-red-500/10 text-red-500',
-  suspenso: 'bg-yellow-500/10 text-yellow-500',
-  cancelado: 'bg-muted text-muted-foreground',
-};
-
-function formatBRL(value: number) {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
 
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -33,25 +25,12 @@ function startOfMonth(date: Date) {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [sendingId, setSendingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    const load = async () => {
-      setLoading(true);
-      const [cRes, tRes] = await Promise.all([
-        supabase.from('clients').select('*').eq('user_id', user.id),
-        supabase.from('transactions').select('*').eq('user_id', user.id),
-      ]);
-      if (cRes.data) setClients(cRes.data);
-      if (tRes.data) setTransactions(tRes.data);
-      setLoading(false);
-    };
-    load();
-  }, [user?.id]); // use user.id (primitive) to avoid re-runs on object reference changes
+  const { data: clients = [], isLoading: loadingClients } = useClients(user?.id);
+  const { data: transactions = [], isLoading: loadingTxs } = useTransactions(user?.id);
+
+  const loading = loadingClients || loadingTxs;
 
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
@@ -308,7 +287,7 @@ export default function Dashboard() {
                   <TableCell>{c.value ? formatBRL(c.value) : '-'}</TableCell>
                   <TableCell>{c.due_date}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={statusColors[c.status] || ''}>{c.status}</Badge>
+                    <Badge variant="secondary" className={CLIENT_STATUS_COLORS[c.status] || ''}>{c.status}</Badge>
                   </TableCell>
                   <TableCell>
                     <Button

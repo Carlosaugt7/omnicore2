@@ -2,8 +2,10 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
+const { logger } = require('./lib/logger');
 
 const evolutionRoutes = require('./routes/evolution');
 const whatsappRoutes = require('./routes/whatsapp');
@@ -16,7 +18,7 @@ const schedulerRoutes = require('./routes/scheduler');
 const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'FRONTEND_URL'];
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) {
-    console.error(`[startup] Missing required environment variable: ${key}`);
+    logger.fatal(`[startup] Missing required environment variable: ${key}`);
     process.exit(1);
   }
 }
@@ -24,15 +26,43 @@ for (const key of REQUIRED_ENV) {
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
+// Origens permitidas — produção + dev local
+const ALLOWED_ORIGINS = [
+  FRONTEND_URL,
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+  'http://10.10.1.28:8080',
+  ...(process.env.EXTRA_CORS_ORIGINS ? process.env.EXTRA_CORS_ORIGINS.split(',') : []),
+].filter(Boolean);
+
 // ─────────────────────────────────────────────────────────────
 // Express app setup
 // ─────────────────────────────────────────────────────────────
 const app = express();
 
-// CORS — only allow requests from the frontend
+// ── Security headers (Helmet) ─────────────────────────────────
+app.use(helmet());
+
+// CSP — Content Security Policy
+app.use(
+  helmet.contentSecurityPolicy({
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", ...ALLOWED_ORIGINS],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  })
+);
+
+// CORS — permite apenas origens autorizadas
 app.use(
   cors({
-    origin: FRONTEND_URL,
+    origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -71,7 +101,7 @@ app.use('/api/whatsapp/', whatsappLimiter);
 // Request logger (dev-friendly)
 // ─────────────────────────────────────────────────────────────
 app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  logger.info({ method: req.method, path: req.path }, 'request');
   next();
 });
 
@@ -105,7 +135,7 @@ app.use((_req, res) => {
 // Global error handler
 // ─────────────────────────────────────────────────────────────
 app.use((err, _req, res, _next) => {
-  console.error('[error]', err.message);
+  logger.error({ err }, 'unhandled error');
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -158,7 +188,7 @@ function initScheduler() {
       .not('reminder_time', 'is', null);
 
     if (error) {
-      console.error('[cron] Error fetching users:', error.message);
+      logger.error({ error }, 'cron: error fetching users');
       return;
     }
 
@@ -173,29 +203,26 @@ function initScheduler() {
 
     if (toRun.length === 0) return;
 
-    console.log(`[cron] Triggering ${toRun.length} user(s)`);
+    logger.info({ count: toRun.length }, 'cron: triggering users');
 
     for (const row of toRun) {
       try {
         const summary = await runJobForUser(row.user_id);
-        console.log(`[cron] User ${row.user_id} (${row.reminder_timezone || 'America/Sao_Paulo'} ${row.reminder_time}):`, summary);
+        logger.info({ userId: row.user_id, timezone: row.reminder_timezone, time: row.reminder_time, summary }, 'cron: job completed');
       } catch (err) {
-        console.error(`[cron] User ${row.user_id} failed:`, err.message);
+        logger.error({ userId: row.user_id, err }, 'cron: user job failed');
       }
     }
   });
 
-  console.log('[scheduler] Cron registered — checks every minute per user timezone');
+  logger.info('scheduler: cron registered (checks every minute per user timezone)');
 }
 
 // ─────────────────────────────────────────────────────────────
 // Start server
 // ─────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🚀 OmniCore Backend running on port ${PORT}`);
-  console.log(`   Frontend URL (CORS): ${FRONTEND_URL}`);
-  console.log(`   Health check: http://localhost:${PORT}/health\n`);
-
+  logger.info({ port: PORT, frontendUrl: FRONTEND_URL }, 'OmniCore Backend started');
   initScheduler();
 });
 

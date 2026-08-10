@@ -13,20 +13,12 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, MoreHorizontal, Pencil, Trash2, DollarSign, AlertTriangle, TrendingDown, CalendarClock, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
+import { formatBRL, TRANSACTION_STATUS_COLORS, TRANSACTION_TYPE_LABELS } from '@/lib/utils';
+import { useTransactions } from '@/hooks/useTransactions';
+import { useClients } from '@/hooks/useClients';
 
 type Transaction = Database['public']['Tables']['transactions']['Row'];
 type Client = Database['public']['Tables']['clients']['Row'];
-
-const typeLabels: Record<string, string> = { entrada: 'Entrada', saida: 'Saída', renovacao: 'Renovação' };
-const statusColors: Record<string, string> = {
-  pago: 'bg-green-500/10 text-green-500',
-  pendente: 'bg-yellow-500/10 text-yellow-500',
-  cancelado: 'bg-red-500/10 text-red-500',
-};
-
-function formatBRL(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
 
 interface DuplicateGroup {
   client_id: string;
@@ -38,7 +30,6 @@ interface DuplicateGroup {
 
 export default function Financial() {
   const { user } = useAuth();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -55,19 +46,13 @@ export default function Financial() {
   const [checkingDupes, setCheckingDupes] = useState(false);
   const [deletingDupes, setDeletingDupes] = useState(false);
 
+  const { data: transactions = [], dataUpdatedAt: txsUpdated } = useTransactions(user?.id);
+  const { data: fetchedClients = [] } = useClients(user?.id);
+
+  // Sincroniza clients do React Query para state local (compatibilidade com mutations)
+  useEffect(() => { setClients(fetchedClients); }, [fetchedClients]);
+
   const PAGE_SIZE = 20;
-
-  const load = async () => {
-    if (!user) return;
-    const [tRes, cRes] = await Promise.all([
-      supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('clients').select('*').eq('user_id', user.id),
-    ]);
-    if (tRes.data) setTransactions(tRes.data);
-    if (cRes.data) setClients(cRes.data);
-  };
-
-  useEffect(() => { load(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const today = new Date().toISOString().split('T')[0];
   const monthStart = monthFilter + '-01';
@@ -324,9 +309,9 @@ export default function Financial() {
                   <TableCell>{t.plan || '-'}</TableCell>
                   <TableCell>{t.value ? formatBRL(t.value) : '-'}</TableCell>
                   <TableCell>{t.due_date || new Date(t.created_at).toLocaleDateString('pt-BR')}</TableCell>
-                  <TableCell>{t.type ? typeLabels[t.type] || t.type : '-'}</TableCell>
+                  <TableCell>{t.type ? TRANSACTION_TYPE_LABELS[t.type] || t.type : '-'}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={statusColors[t.status || ''] || ''}>{t.status || '-'}</Badge>
+                    <Badge variant="secondary" className={TRANSACTION_STATUS_COLORS[t.status || ''] || ''}>{t.status || '-'}</Badge>
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -398,7 +383,7 @@ export default function Financial() {
                   <TableRow key={i}>
                     <TableCell className="font-mono text-xs">{d.client_id.slice(0, 8)}...</TableCell>
                     <TableCell>{d.due_date}</TableCell>
-                    <TableCell>{typeLabels[d.type] || d.type}</TableCell>
+                    <TableCell>{TRANSACTION_TYPE_LABELS[d.type] || d.type}</TableCell>
                     <TableCell><Badge variant="destructive">{d.total} registros</Badge></TableCell>
                     <TableCell>
                       <Button size="sm" variant="outline" className="text-destructive" onClick={() => deleteDuplicates(d)} disabled={deletingDupes}>

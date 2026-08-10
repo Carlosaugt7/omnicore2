@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../lib/supabase');
 const { createEvolutionClient, extractQrCode } = require('../lib/evolutionApi');
 const { requireAuth } = require('../middleware/auth');
+const { logger } = require('../lib/logger');
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/evolution/ping
@@ -54,7 +55,7 @@ router.post('/setup', requireAuth, async (req, res) => {
     // Instance may already exist — continue
     const msg = err.response?.data?.message || err.message;
     if (!msg.toLowerCase().includes('already')) {
-      console.warn(`[setup] Instance create warning: ${msg}`);
+      logger.warn({ instanceName, error: msg }, 'setup: instance create warning');
     }
   }
 
@@ -65,7 +66,7 @@ router.post('/setup', requireAuth, async (req, res) => {
     const { data: connectData } = await client.get(`/instance/connect/${instanceName}`);
     qrCode = extractQrCode(connectData);
   } catch (err) {
-    console.warn('[setup] Connect error:', err.response?.data || err.message);
+    logger.warn({ instanceName, error: err.response?.data || err.message }, 'setup: connect error');
   }
 
   let n8nConfigured = false;
@@ -79,7 +80,7 @@ router.post('/setup', requireAuth, async (req, res) => {
       });
       n8nConfigured = true;
     } catch (err) {
-      console.warn('[setup] N8N config error:', err.response?.data || err.message);
+      logger.warn({ instanceName, error: err.response?.data || err.message }, 'setup: N8N config error');
     }
   }
 
@@ -98,7 +99,7 @@ router.post('/setup', requireAuth, async (req, res) => {
       base64: false,
     });
   } catch (err) {
-    console.warn('[setup] Webhook config error:', err.response?.data || err.message);
+    logger.warn({ instanceName, error: err.response?.data || err.message }, 'setup: webhook config error');
   }
 
   // 5. Upsert settings in Supabase
@@ -118,7 +119,7 @@ router.post('/setup', requireAuth, async (req, res) => {
     );
 
   if (upsertError) {
-    console.error('[setup] Supabase upsert error:', upsertError.message);
+    logger.error({ userId, error: upsertError.message }, 'setup: supabase upsert error');
     return res.status(500).json({ success: false, error: 'Failed to save settings' });
   }
 
@@ -223,7 +224,7 @@ router.post('/disconnect', requireAuth, async (req, res) => {
     const client = createEvolutionClient(settings.evolution_api_url, settings.evolution_api_key);
     await client.delete(`/instance/logout/${settings.evolution_instance}`);
   } catch (err) {
-    console.warn('[disconnect] Logout error:', err.response?.data || err.message);
+    logger.warn({ userId, error: err.response?.data || err.message }, 'disconnect: logout error');
     // Continue to update status even if logout call fails
   }
 

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Send, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
+import { getDisplayStatus, CLIENT_STATUS_COLORS, getLocalDateStr, formatDate, replaceMessageVars, LOG_STATUS_COLORS } from '@/lib/utils';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type ReminderLog = Database['public']['Tables']['reminder_logs']['Row'];
@@ -30,31 +31,6 @@ const DEFAULT_TEMPLATES: SettingsData = {
   template_today: '⚠️ {nome}, seu plano {plano} vence HOJE!',
   template_overdue: '❌ {nome}, seu acesso {plano} foi suspenso.',
 };
-
-const statusColors: Record<string, string> = {
-  success: 'bg-green-500/10 text-green-500',
-  failed: 'bg-red-500/10 text-red-500',
-  pending: 'bg-yellow-500/10 text-yellow-500',
-  ativo: 'bg-green-500/10 text-green-500',
-  'à vencer': 'bg-yellow-500/10 text-yellow-500',
-  vencido: 'bg-red-500/10 text-red-500',
-  suspenso: 'bg-red-500/10 text-red-500',
-  cancelado: 'bg-muted text-muted-foreground',
-};
-
-function formatDate(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
-}
-
-function replaceVars(template: string, client: Client, pixKey: string) {
-  return template
-    .replace(/\{nome\}/g, client.name)
-    .replace(/\{plano\}/g, client.plan || '-')
-    .replace(/\{valor\}/g, client.value ? Number(client.value).toFixed(2) : '0.00')
-    .replace(/\{vencimento\}/g, client.due_date || '-')
-    .replace(/\{servidor\}/g, client.server || '-')
-    .replace(/\{chavePix\}/g, pixKey || '-');
-}
 
 export default function Reminders() {
   const { user } = useAuth();
@@ -87,13 +63,6 @@ export default function Reminders() {
     });
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getLocalDateStr = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   const now = new Date();
   const today = getLocalDateStr(now);
   
@@ -104,16 +73,6 @@ export default function Reminders() {
   const yesterdayDate = new Date(now);
   yesterdayDate.setDate(now.getDate() - 1);
   const yesterday = getLocalDateStr(yesterdayDate);
-
-  const getDisplayStatus = (client: Client) => {
-    if (client.status === 'cancelado') return 'cancelado';
-    if (client.status === 'suspenso') return 'suspenso';
-    if (!client.due_date) return client.status;
-    
-    if (client.due_date < today) return 'vencido';
-    if (client.due_date === today || client.due_date === tomorrow) return 'à vencer';
-    return 'ativo';
-  };
 
   const tabs = useMemo(() => [
     {
@@ -270,7 +229,7 @@ export default function Reminders() {
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">{client.name}</CardTitle>
-                        <Badge variant="secondary" className={statusColors[getDisplayStatus(client)] || ''}>
+                        <Badge variant="secondary" className={CLIENT_STATUS_COLORS[getDisplayStatus(client)] || ''}>
                           {getDisplayStatus(client)}
                         </Badge>
                       </div>
@@ -285,7 +244,7 @@ export default function Reminders() {
 
                       <div className="rounded-lg bg-muted p-3">
                         <p className="text-xs font-medium text-muted-foreground mb-1">Preview da mensagem:</p>
-                        <p className="text-xs whitespace-pre-wrap">{replaceVars(tab.template, client, settings.pix_key)}</p>
+                        <p className="text-xs whitespace-pre-wrap">{replaceMessageVars(tab.template, client, settings.pix_key)}</p>
                       </div>
 
                       <SendButton client={client} templateType={tab.templateType} />
@@ -357,7 +316,7 @@ export default function Reminders() {
                   <TableCell className="font-medium">{log.client_name || '-'}</TableCell>
                   <TableCell>{log.template_type || '-'}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={statusColors[log.status || ''] || ''}>{log.status || '-'}</Badge>
+                    <Badge variant="secondary" className={LOG_STATUS_COLORS[log.status || ''] || ''}>{log.status || '-'}</Badge>
                   </TableCell>
                   <TableCell className="text-xs text-destructive max-w-[200px] truncate">{log.error_message || '-'}</TableCell>
                 </TableRow>
