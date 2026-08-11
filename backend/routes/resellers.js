@@ -7,26 +7,69 @@ const { logger } = require('../lib/logger');
 // ── Todas as rotas exigem acesso master ──────────────────────
 router.use(requireMaster);
 
-// ── Listar todos os revendedores ─────────────────────────────
+const MASTER_EMAILS = ['carlosaugt7@gmail.com', 'andressanramos@hotmail.com'];
+
+// ── Listar todos os revendedores (inclui auto-detected) ──────
 router.get('/', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    // 1. Busca todos os usuários do auth (service_role tem acesso admin)
+    const { data: authUsers, error: authErr } = await supabase.auth.admin.listUsers();
+    if (authErr) throw authErr;
+
+    // Filtra masters
+    const regularUsers = (authUsers?.users || []).filter(
+      u => u.email && !MASTER_EMAILS.includes(u.email)
+    );
+
+    // 2. Busca entradas existentes na tabela resellers
+    const { data: existingResellers, error: rsErr } = await supabase
       .from('resellers')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*');
+    if (rsErr) throw rsErr;
 
-    if (error) throw error;
+    const resellerByUserId = new Map();
+    (existingResellers || []).forEach(r => resellerByUserId.set(r.user_id, r));
 
-    // Para cada revendedor, conta os clientes
+    // 3. Monta lista mesclada: reseller existente ou fallback do auth
     const enriched = await Promise.all(
-      (data || []).map(async (r) => {
+      regularUsers.map(async (authUser) => {
+        const existing = resellerByUserId.get(authUser.id);
+        const userId = authUser.id;
+        const userEmail = authUser.email || '';
+        const rawMeta = authUser.user_metadata || {};
+        const userName = rawMeta.name || rawMeta.full_name || userEmail.split('@')[0] || 'Sem nome';
+        const userPhone = rawMeta.phone || null;
+
+        // Conta clientes
         const { count } = await supabase
           .from('clients')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', r.user_id);
-        return { ...r, client_count: count || 0 };
+          .eq('user_id', userId);
+
+        if (existing) {
+          return { ...existing, client_count: count || 0 };
+        }
+
+        // Fallback: usuário sem entrada na tabela resellers
+        return {
+          id: `auto-${userId}`,
+          user_id: userId,
+          name: existing?.name || userName,
+          email: userEmail,
+          phone: existing?.phone || userPhone,
+          plan: 'basic',
+          status: 'active',
+          notes: null,
+          created_at: authUser.created_at || new Date().toISOString(),
+          updated_at: authUser.updated_at || new Date().toISOString(),
+          client_count: count || 0,
+          _auto: true, // indica que não tem entrada na tabela resellers ainda
+        };
       })
     );
+
+    // Ordena por created_at decrescente
+    enriched.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     res.json({ success: true, data: enriched });
   } catch (err) {
@@ -123,6 +166,84 @@ router.put('/:id', async (req, res) => {
     res.json({ success: true, data });
   } catch (err) {
     logger.error({ err }, 'resellers: update error');
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Sincronizar: cria reseller para usuários auto-detectados ─
+router.post('/sync', async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    let created = 0;
+
+    if (user_id) {
+      // Sincronizar um usuário específico
+      const { data: authUser } = await supabase.auth.admin.getUserById(user_id);
+      if (!authUser?.user) {
+        return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
+      }
+
+      const u = authUser.user;
+      const rawMeta = u.user_metadata || {};
+      const name = rawMeta.name || rawMeta.full_name || (u.email || '').split('@')[0];
+
+      await supabase.from('resellers').insert({
+        user_id: u.id,
+        name,
+        email: u.email,
+        phone: rawMeta.phone || null,
+        plan: 'basic',
+        status: 'active',
+      });
+
+      await supabase.from('reseller_audit_logs').insert({
+        reseller_id: u.id,
+        action: 'create',
+        admin_email: req.masterUser.email,
+        details: `Revendedor '${name}' (${u.email}) sincronizado automaticamente.`,
+      });
+
+      created = 1;
+    } else {
+      // Sincronizar todos os usuários pendentes
+      const { data: authUsers } = await supabase.auth.admin.listUsers();
+      const regularUsers = (authUsers?.users || []).filter(
+        u => u.email && !MASTER_EMAILS.includes(u.email)
+      );
+
+      const { data: existing } = await supabase.from('resellers').select('user_id');
+      const existingIds = new Set((existing || []).map(r => r.user_id));
+
+      for (const u of regularUsers) {
+        if (existingIds.has(u.id)) continue;
+
+        const rawMeta = u.user_metadata || {};
+        const name = rawMeta.name || rawMeta.full_name || (u.email || '').split('@')[0];
+
+        await supabase.from('resellers').insert({
+          user_id: u.id,
+          name,
+          email: u.email,
+          phone: rawMeta.phone || null,
+          plan: 'basic',
+          status: 'active',
+        });
+
+        await supabase.from('reseller_audit_logs').insert({
+          reseller_id: u.id,
+          action: 'create',
+          admin_email: req.masterUser.email,
+          details: `Revendedor '${name}' (${u.email}) sincronizado em lote.`,
+        });
+
+        created++;
+      }
+    }
+
+    logger.info({ admin: req.masterUser.email, created }, 'resellers synced');
+    res.json({ success: true, created });
+  } catch (err) {
+    logger.error({ err }, 'resellers: sync error');
     res.status(500).json({ success: false, error: err.message });
   }
 });
