@@ -19,6 +19,7 @@ const Broadcast = lazy(() => import("./pages/Broadcast"));
 const MacAddresses = lazy(() => import("./pages/MacAddresses"));
 const Referrals = lazy(() => import("./pages/Referrals"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const Resellers = lazy(() => import("./pages/Resellers"));
 
 const queryClient = new QueryClient();
 
@@ -54,6 +55,7 @@ const App = () => (
               <Route path="mac-addresses" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><MacAddresses /></Suspense>} />
               <Route path="referrals" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Referrals /></Suspense>} />
               <Route path="settings" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><SettingsPage /></Suspense>} />
+              <Route path="resellers" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Resellers /></Suspense>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

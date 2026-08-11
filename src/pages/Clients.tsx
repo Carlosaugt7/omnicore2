@@ -167,6 +167,14 @@ export default function Clients() {
       const { error } = await supabase.from('clients').update(payload).eq('id', editingClient.id);
       if (error) toast.error(error.message); else toast.success('Cliente atualizado!');
     } else {
+      // Verificar limite de clientes do plano (apenas para revendedores)
+      const { data: limitCheck } = await supabase.rpc('check_reseller_client_limit', { p_user_id: user.id });
+      if (limitCheck && !limitCheck.allowed) {
+        toast.error(`Limite de clientes atingido! Seu plano ${limitCheck.plan} permite até ${limitCheck.plan_limit} clientes. Você já possui ${limitCheck.current_count}.`);
+        setLoading(false);
+        return;
+      }
+
       const { error } = await supabase.from('clients').insert(payload);
       if (error) toast.error(error.message); else toast.success('Cliente adicionado!');
     }

@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, Server, DollarSign, Bell,
-  MonitorSmartphone, Settings, LogOut, Zap, Gift, Megaphone,
+  MonitorSmartphone, Settings, LogOut, Zap, Gift, Megaphone, Store,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -13,6 +13,8 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 
+const MASTER_EMAILS = ['carlosaugt7@gmail.com', 'andressanramos@hotmail.com'];
+
 const mainNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Clientes", url: "/dashboard/clients", icon: Users },
@@ -22,6 +24,7 @@ const mainNav = [
   { title: "Aviso Geral", url: "/dashboard/broadcast", icon: Megaphone },
   { title: "MAC Address", url: "/dashboard/mac-addresses", icon: MonitorSmartphone },
   { title: "Indicações", url: "/dashboard/referrals", icon: Gift },
+  { title: "Revenda", url: "/dashboard/resellers", icon: Store, masterOnly: true },
 ];
 
 const bottomNav = [
@@ -34,6 +37,8 @@ export function AppSidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
 
+  const isMaster = user?.email ? MASTER_EMAILS.includes(user.email) : false;
+  const filteredNav = mainNav.filter(item => !item.masterOnly || isMaster);
   const initials = user?.email?.slice(0, 2).toUpperCase() || "U";
 
   return (
@@ -53,7 +58,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNav.map((item) => (
+              {filteredNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
