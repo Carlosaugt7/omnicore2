@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
   Users, Search, Plus, Pencil, Trash2, ShieldBan, ShieldCheck,
-  Building2, Store, Phone, Mail, Calendar, UserCheck, RefreshCw, UserPlus,
+  Building2, Store, Phone, Mail, Calendar, UserCheck, RefreshCw,
 } from 'lucide-react';
 
 interface Reseller {
@@ -28,7 +28,6 @@ interface Reseller {
   created_at: string;
   updated_at: string;
   client_count: number;
-  _auto?: boolean;
 }
 
 const PLAN_LIMITS: Record<string, number> = { basic: 40, start: 100, advanced: 500 };
@@ -220,22 +219,6 @@ export default function Resellers() {
     }
   };
 
-  const handleSyncOne = async (r: Reseller) => {
-    try {
-      const res = await backendFetch('/api/resellers/sync', {
-        method: 'POST', body: JSON.stringify({ user_id: r.user_id }),
-      });
-      if (res.success) {
-        toast.success('Revendedor sincronizado!');
-        loadResellers();
-      } else {
-        toast.error(res.error || 'Erro ao sincronizar.');
-      }
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
   const handleSyncAll = async () => {
     setLoading(true);
     try {
@@ -365,35 +348,26 @@ export default function Resellers() {
                       <Badge className={r.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}>
                         {r.status === 'active' ? 'Ativo' : 'Bloqueado'}
                       </Badge>
-                      {r._auto && <Badge variant="outline" className="ml-1 text-xs text-amber-500 border-amber-300">Novo</Badge>}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {r._auto ? (
-                          <Button variant="outline" size="sm" onClick={() => handleSyncOne(r)} title="Adicionar à Revenda">
-                            <UserPlus className="h-4 w-4 mr-1" />Sincronizar
-                          </Button>
-                        ) : (
-                          <>
-                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(r)} title="Editar">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => toggleBlock(r)}
-                              title={r.status === 'active' ? 'Bloquear' : 'Desbloquear'}
-                            >
-                              {r.status === 'active'
-                                ? <ShieldBan className="h-4 w-4 text-yellow-500" />
-                                : <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                              }
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(r)} title="Excluir">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </>
-                        )}
+                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(r)} title="Editar">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleBlock(r)}
+                          title={r.status === 'active' ? 'Bloquear' : 'Desbloquear'}
+                        >
+                          {r.status === 'active'
+                            ? <ShieldBan className="h-4 w-4 text-yellow-500" />
+                            : <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                          }
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(r)} title="Excluir">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

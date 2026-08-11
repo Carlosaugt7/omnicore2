@@ -9,67 +9,27 @@ router.use(requireMaster);
 
 const MASTER_EMAILS = ['carlosaugt7@gmail.com', 'andressanramos@hotmail.com'];
 
-// ── Listar todos os revendedores (inclui auto-detected) ──────
+// ── Listar todos os revendedores (apenas tabela resellers) ───
 router.get('/', async (req, res) => {
   try {
-    // 1. Busca todos os usuários do auth (service_role tem acesso admin)
-    const { data: authUsers, error: authErr } = await supabase.auth.admin.listUsers();
-    if (authErr) throw authErr;
-
-    // Filtra masters
-    const regularUsers = (authUsers?.users || []).filter(
-      u => u.email && !MASTER_EMAILS.includes(u.email)
-    );
-
-    // 2. Busca entradas existentes na tabela resellers
-    const { data: existingResellers, error: rsErr } = await supabase
+    const { data, error } = await supabase
       .from('resellers')
-      .select('*');
-    if (rsErr) throw rsErr;
+      .select('*')
+      .eq('deleted', false)
+      .order('created_at', { ascending: false });
 
-    const resellerByUserId = new Map();
-    (existingResellers || []).forEach(r => resellerByUserId.set(r.user_id, r));
+    if (error) throw error;
 
-    // 3. Monta lista mesclada: reseller existente ou fallback do auth
+    // Para cada revendedor, conta os clientes
     const enriched = await Promise.all(
-      regularUsers.map(async (authUser) => {
-        const existing = resellerByUserId.get(authUser.id);
-        const userId = authUser.id;
-        const userEmail = authUser.email || '';
-        const rawMeta = authUser.user_metadata || {};
-        const userName = rawMeta.name || rawMeta.full_name || userEmail.split('@')[0] || 'Sem nome';
-        const userPhone = rawMeta.phone || null;
-
-        // Conta clientes
+      (data || []).map(async (r) => {
         const { count } = await supabase
           .from('clients')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId);
-
-        if (existing) {
-          return { ...existing, client_count: count || 0 };
-        }
-
-        // Fallback: usuário sem entrada na tabela resellers
-        return {
-          id: `auto-${userId}`,
-          user_id: userId,
-          name: existing?.name || userName,
-          email: userEmail,
-          phone: existing?.phone || userPhone,
-          plan: 'basic',
-          status: 'active',
-          notes: null,
-          created_at: authUser.created_at || new Date().toISOString(),
-          updated_at: authUser.updated_at || new Date().toISOString(),
-          client_count: count || 0,
-          _auto: true, // indica que não tem entrada na tabela resellers ainda
-        };
+          .eq('user_id', r.user_id);
+        return { ...r, client_count: count || 0 };
       })
     );
-
-    // Ordena por created_at decrescente
-    enriched.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     res.json({ success: true, data: enriched });
   } catch (err) {
@@ -92,7 +52,6 @@ router.post('/', async (req, res) => {
 
     if (error) throw error;
 
-    // Audit log
     await supabase.from('reseller_audit_logs').insert({
       reseller_id: data.id,
       action: 'create',
@@ -111,16 +70,8 @@ router.post('/', async (req, res) => {
 // ── Atualizar revendedor ─────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
-    let { id } = req.params;
+    const { id } = req.params;
     const { name, email, phone, plan, status, notes } = req.body;
-
-    // Se for um ID auto-detectado, rejeita — precisa sincronizar primeiro
-    if (id.startsWith('auto-')) {
-      return res.status(400).json({
-        success: false,
-        error: 'Este revendedor ainda não foi sincronizado. Use "Sincronizar" primeiro antes de editar.',
-      });
-    }
 
     // Busca dados atuais para audit
     const { data: old } = await supabase.from('resellers').select('*').eq('id', id).single();
@@ -178,7 +129,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// ── Sincronizar: cria reseller para usuários auto-detectados ─
+// ── Sincronizar: cria reseller para usuários existentes ──────
 router.post('/sync', async (req, res) => {
   try {
     const { user_id } = req.body;
@@ -208,7 +159,7 @@ router.post('/sync', async (req, res) => {
         reseller_id: u.id,
         action: 'create',
         admin_email: req.masterUser.email,
-        details: `Revendedor '${name}' (${u.email}) sincronizado automaticamente.`,
+        details: `Revendedor '${name}' (${u.email}) sincronizado.`,
       });
 
       created = 1;
@@ -256,36 +207,40 @@ router.post('/sync', async (req, res) => {
   }
 });
 
-// ── Excluir revendedor ───────────────────────────────────────
+// ── Excluir revendedor (soft-delete) ─────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
-    let { id } = req.params;
+    const { id } = req.params;
 
-    // Se for um ID auto-detectado (auto-xxx), extrai o user_id real
-    if (id.startsWith('auto-')) {
-      const realUserId = id.replace('auto-', '');
-      id = realUserId;
+    const { data: existing } = await supabase
+      .from('resellers')
+      .select('name,email,deleted')
+      .eq('id', id)
+      .single();
 
-      // Tenta encontrar pela coluna user_id
-      const { data: byUserId } = await supabase.from('resellers').select('*').eq('user_id', realUserId).maybeSingle();
-      if (!byUserId) {
-        return res.status(404).json({ success: false, error: 'Este usuário não possui entrada na tabela de revendedores. Use "Sincronizar" primeiro.' });
-      }
-      id = byUserId.id;
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Revendedor não encontrado.' });
     }
 
-    const { data: existing } = await supabase.from('resellers').select('name,email').eq('id', id).single();
+    if (existing.deleted) {
+      return res.status(400).json({ success: false, error: 'Este revendedor já foi excluído.' });
+    }
 
-    const { error } = await supabase.from('resellers').delete().eq('id', id);
+    // Soft-delete: marca como excluído + bloqueia status
+    const { error } = await supabase
+      .from('resellers')
+      .update({ deleted: true, status: 'blocked', updated_at: new Date().toISOString() })
+      .eq('id', id);
+
     if (error) throw error;
 
     await supabase.from('reseller_audit_logs').insert({
       reseller_id: id, action: 'delete',
       admin_email: req.masterUser.email,
-      details: `Revendedor '${existing?.name}' (${existing?.email}) excluído.`,
+      details: `Revendedor '${existing.name}' (${existing.email}) excluído (soft-delete).`,
     });
 
-    logger.info({ admin: req.masterUser.email, deletedId: id }, 'reseller deleted');
+    logger.info({ admin: req.masterUser.email, deletedId: id }, 'reseller soft-deleted');
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, 'resellers: delete error');
