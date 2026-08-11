@@ -111,8 +111,16 @@ router.post('/', async (req, res) => {
 // ── Atualizar revendedor ─────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
     const { name, email, phone, plan, status, notes } = req.body;
+
+    // Se for um ID auto-detectado, rejeita — precisa sincronizar primeiro
+    if (id.startsWith('auto-')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Este revendedor ainda não foi sincronizado. Use "Sincronizar" primeiro antes de editar.',
+      });
+    }
 
     // Busca dados atuais para audit
     const { data: old } = await supabase.from('resellers').select('*').eq('id', id).single();
@@ -251,7 +259,20 @@ router.post('/sync', async (req, res) => {
 // ── Excluir revendedor ───────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
+
+    // Se for um ID auto-detectado (auto-xxx), extrai o user_id real
+    if (id.startsWith('auto-')) {
+      const realUserId = id.replace('auto-', '');
+      id = realUserId;
+
+      // Tenta encontrar pela coluna user_id
+      const { data: byUserId } = await supabase.from('resellers').select('*').eq('user_id', realUserId).maybeSingle();
+      if (!byUserId) {
+        return res.status(404).json({ success: false, error: 'Este usuário não possui entrada na tabela de revendedores. Use "Sincronizar" primeiro.' });
+      }
+      id = byUserId.id;
+    }
 
     const { data: existing } = await supabase.from('resellers').select('name,email').eq('id', id).single();
 
