@@ -65,11 +65,18 @@ declare
   _plan text;
   _limit int;
   _count bigint;
+  _resolved_user_id uuid;
 begin
+  -- Resolve Andressa para o ID do Carlos para compartilhamento de base
+  _resolved_user_id := p_user_id;
+  if p_user_id = 'd267b748-8f3b-4684-85e9-589dc9a79a93' then
+    _resolved_user_id := 'd9919cb5-c4a4-43c3-8614-878495d18c37';
+  end if;
+
   -- Busca o plano do revendedor
   select r.plan into _plan
   from public.resellers r
-  where r.user_id = p_user_id and r.status = 'active';
+  where r.user_id = _resolved_user_id and r.status = 'active';
 
   -- Se não for revendedor cadastrado, sem limite
   if _plan is null then
@@ -88,7 +95,7 @@ begin
   -- Conta clientes atuais
   select count(*) into _count
   from public.clients
-  where user_id = p_user_id;
+  where user_id = _resolved_user_id;
 
   return query select _count, _limit, _count < _limit, _plan;
 end;

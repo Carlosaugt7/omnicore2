@@ -23,10 +23,15 @@ router.get('/', async (req, res) => {
     // Para cada revendedor, conta os clientes
     const enriched = await Promise.all(
       (data || []).map(async (r) => {
+        // Se for a Andressa, usa o ID do Carlos para contar os clientes compartilhados
+        const queryUserId = r.user_id === 'd267b748-8f3b-4684-85e9-589dc9a79a93'
+          ? 'd9919cb5-c4a4-43c3-8614-878495d18c37'
+          : r.user_id;
+
         const { count } = await supabase
           .from('clients')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', r.user_id);
+          .eq('user_id', queryUserId);
         return { ...r, client_count: count || 0 };
       })
     );
