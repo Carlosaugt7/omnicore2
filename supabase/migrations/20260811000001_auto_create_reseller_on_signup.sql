@@ -25,11 +25,12 @@ begin
   end if;
 
   -- Auto-cadastra como revendedor Basic
-  insert into public.resellers (user_id, name, email, plan, status)
+  insert into public.resellers (user_id, name, email, phone, plan, status)
   values (
     new.id,
     coalesce(new.raw_user_meta_data ->> 'name', new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)),
     new.email,
+    new.raw_user_meta_data ->> 'phone',
     'basic',
     'active'
   );
