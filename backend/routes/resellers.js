@@ -277,7 +277,8 @@ router.get('/check-limit/:userId', async (req, res) => {
     const { data, error } = await supabase.rpc('check_reseller_client_limit', { p_user_id: userId });
 
     if (error) throw error;
-    res.json({ success: true, ...data });
+    const limitInfo = Array.isArray(data) ? data[0] : data;
+    res.json({ success: true, ...limitInfo });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -168,8 +168,9 @@ export default function Clients() {
       if (error) toast.error(error.message); else toast.success('Cliente atualizado!');
     } else {
       // Verificar limite de clientes do plano (apenas para revendedores)
-      const { data: limitCheck } = await supabase.rpc('check_reseller_client_limit', { p_user_id: user.id });
-      if (limitCheck && !limitCheck.allowed) {
+      const { data: rawLimitCheck } = await supabase.rpc('check_reseller_client_limit', { p_user_id: user.id });
+      const limitCheck = Array.isArray(rawLimitCheck) ? rawLimitCheck[0] : rawLimitCheck;
+      if (limitCheck && limitCheck.allowed === false) {
         toast.error(`Limite de clientes atingido! Seu plano ${limitCheck.plan} permite até ${limitCheck.plan_limit} clientes. Você já possui ${limitCheck.current_count}.`);
         setLoading(false);
         return;

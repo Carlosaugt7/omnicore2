@@ -42,8 +42,7 @@ export default function Referrals() {
   // Form states — edição
   const [editReferrerId, setEditReferrerId] = useState('');
   const [editReferredId, setEditReferredId] = useState('');
-  const [editMonth1, setEditMonth1] = useState(false);
-  const [editMonth2, setEditMonth2] = useState(false);
+  const [editRenovado, setEditRenovado] = useState(false);
 
   const loadData = async () => {
     if (!user) return;
@@ -190,10 +189,9 @@ export default function Referrals() {
     setEditingReferral(referral);
     setEditReferrerId(referral.referrer_id);
     setEditReferredId(referral.referred_id);
-    // Carrega estado dos meses pagos
+    // Carrega estado da renovação
     const count = getPaymentsCount(referral.referred_id);
-    setEditMonth1(count >= 1);
-    setEditMonth2(count >= 2);
+    setEditRenovado(count >= 2);
     setEditDialogOpen(true);
   };
 
@@ -229,10 +227,10 @@ export default function Referrals() {
 
       if (error) throw error;
 
-      // 2. Sincroniza meses pagos do cliente indicado
+      // 2. Sincroniza renovação do cliente indicado
       const referredClient = clients.find(c => c.id === editReferredId);
       const currentCount = getPaymentsCount(editReferredId);
-      const targetCount = editMonth2 ? 2 : editMonth1 ? 1 : 0;
+      const targetCount = editRenovado ? 2 : 1;
 
       if (targetCount > currentCount && referredClient) {
         // Precisa criar transações adicionais
@@ -407,8 +405,8 @@ export default function Referrals() {
               </div>
 
               <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-                O 1º mês será automaticamente marcado como <strong>pago</strong>.
-                O bônus estará disponível após o 2º pagamento.
+                O 1º mês é marcado como <strong>pago</strong> ao cadastrar.
+                O bônus estará disponível quando o cliente estiver <strong>Renovado</strong>.
               </p>
 
               <Button type="submit" className="w-full mt-4" disabled={loading}>
@@ -460,41 +458,24 @@ export default function Referrals() {
                 </Select>
               </div>
 
-              {/* Meses pagos do cliente indicado */}
+              {/* Status da Renovação do cliente indicado */}
               {editingReferral && (
                 <div className="space-y-3 border rounded-lg p-4 bg-muted/20">
-                  <Label className="text-sm font-medium">Meses Pagos (Cliente Indicado)</Label>
+                  <Label className="text-sm font-medium">Status da Indicação</Label>
                   <div className="space-y-2">
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={editMonth1}
-                        onChange={(e) => {
-                          setEditMonth1(e.target.checked);
-                          if (!e.target.checked) setEditMonth2(false);
-                        }}
-                        className="rounded border-gray-300 h-4 w-4"
+                        checked={editRenovado}
+                        onChange={(e) => setEditRenovado(e.target.checked)}
+                        className="rounded border-gray-300 h-4 w-4 text-emerald-600 focus:ring-emerald-500"
                       />
-                      <span className="text-sm">1º Mês</span>
-                      {editMonth1 && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editMonth2}
-                        onChange={(e) => {
-                          setEditMonth2(e.target.checked);
-                          if (e.target.checked) setEditMonth1(true);
-                        }}
-                        disabled={!editMonth1}
-                        className="rounded border-gray-300 h-4 w-4"
-                      />
-                      <span className={`text-sm ${!editMonth1 ? 'text-muted-foreground' : ''}`}>2º Mês</span>
-                      {editMonth2 && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                      <span className="text-sm font-medium">Renovado</span>
+                      {editRenovado && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
                     </label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Ao marcar/desmarcar, as transações serão criadas ou removidas automaticamente ao salvar.
+                    Ao marcar como <strong>Renovado</strong>, a renovação é confirmada e o bônus fica disponível para resgate.
                   </p>
                 </div>
               )}
@@ -553,8 +534,7 @@ export default function Referrals() {
               <TableRow>
                 <TableHead>Cliente Indicador</TableHead>
                 <TableHead>Cliente Indicado</TableHead>
-                <TableHead className="text-center">1º Mês</TableHead>
-                <TableHead className="text-center">2º Mês</TableHead>
+                <TableHead className="text-center">Renovado</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-48 text-right">Ações</TableHead>
               </TableRow>
@@ -564,15 +544,14 @@ export default function Referrals() {
                 const referrer = clients.find(c => c.id === item.referrer_id);
                 const referred = clients.find(c => c.id === item.referred_id);
                 const paymentsCount = getPaymentsCount(item.referred_id);
-                const month1Paid = paymentsCount >= 1;
-                const month2Paid = paymentsCount >= 2;
+                const isRenewed = paymentsCount >= 2;
 
                 let statusBadge = <Badge variant="secondary">Pendente</Badge>;
                 let canRedeem = false;
 
                 if (item.status === 'resgatado') {
                   statusBadge = <Badge className="bg-muted text-muted-foreground hover:bg-muted">Resgatado</Badge>;
-                } else if (month2Paid) {
+                } else if (isRenewed) {
                   statusBadge = <Badge className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20">Bônus</Badge>;
                   canRedeem = true;
                 } else {
@@ -584,14 +563,7 @@ export default function Referrals() {
                     <TableCell className="font-medium">{referrer?.name || 'Cliente removido'}</TableCell>
                     <TableCell>{referred?.name || 'Cliente removido'}</TableCell>
                     <TableCell className="text-center">
-                      {month1Paid ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald-500 mx-auto" />
-                      ) : (
-                        <Clock className="h-5 w-5 text-muted-foreground mx-auto" />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {month2Paid ? (
+                      {isRenewed ? (
                         <CheckCircle2 className="h-5 w-5 text-emerald-500 mx-auto" />
                       ) : (
                         <Clock className="h-5 w-5 text-muted-foreground mx-auto" />
@@ -636,7 +608,7 @@ export default function Referrals() {
               })}
               {referrals.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     Nenhuma indicação cadastrada
                   </TableCell>
                 </TableRow>
