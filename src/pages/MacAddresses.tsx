@@ -8,13 +8,26 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
 type MacAddress = Database['public']['Tables']['mac_addresses']['Row'];
 type Client = Database['public']['Tables']['clients']['Row'];
 type Service = Database['public']['Tables']['services']['Row'];
+
+const getSiteName = (url: string | null): string => {
+  if (!url) return '';
+  try {
+    const formattedUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
+    const parsed = new URL(formattedUrl);
+    let host = parsed.hostname.replace(/^www\./, '');
+    const name = host.split('.')[0];
+    return name || host;
+  } catch {
+    return url;
+  }
+};
 
 export default function MacAddresses() {
   const { user } = useAuth();
@@ -99,7 +112,8 @@ export default function MacAddresses() {
     const query = search.toLowerCase();
     const clientName = (item.client_name || '').toLowerCase();
     const mac = (item.mac || '').toLowerCase();
-    return clientName.includes(query) || mac.includes(query);
+    const site = (item.activation_url || '').toLowerCase();
+    return clientName.includes(query) || mac.includes(query) || site.includes(query);
   });
 
   return (
@@ -122,7 +136,7 @@ export default function MacAddresses() {
               </div>
               <div className="space-y-2"><Label>MAC *</Label><Input name="mac" required defaultValue={editing?.mac || ''} placeholder="00:1A:2B:3C:4D:5E" className="uppercase font-mono" /></div>
               <div className="space-y-2"><Label>Chave</Label><Input name="key" defaultValue={editing?.key || ''} /></div>
-              <div className="space-y-2"><Label>URL Ativação</Label><Input name="activation_url" defaultValue={editing?.activation_url || ''} /></div>
+              <div className="space-y-2"><Label>Site (URL)</Label><Input name="activation_url" defaultValue={editing?.activation_url || ''} placeholder="https://iboplay.com" /></div>
               <div className="space-y-2">
                 <Label>Servidor</Label>
                 <Select value={formServer} onValueChange={setFormServer}>
@@ -143,7 +157,7 @@ export default function MacAddresses() {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Pesquisar por cliente ou MAC..."
+              placeholder="Pesquisar por cliente, MAC ou site..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 pr-9"
@@ -167,6 +181,7 @@ export default function MacAddresses() {
                 <TableHead>Cliente</TableHead>
                 <TableHead>MAC</TableHead>
                 <TableHead>Chave</TableHead>
+                <TableHead>Site</TableHead>
                 <TableHead>Servidor</TableHead>
                 <TableHead className="w-20">Ações</TableHead>
               </TableRow>
@@ -177,6 +192,21 @@ export default function MacAddresses() {
                   <TableCell className="font-medium">{item.client_name || '-'}</TableCell>
                   <TableCell className="font-mono text-xs">{item.mac}</TableCell>
                   <TableCell className="text-xs">{item.key || '-'}</TableCell>
+                  <TableCell className="text-xs">
+                    {item.activation_url ? (
+                      <a
+                        href={item.activation_url.startsWith('http') ? item.activation_url : `https://${item.activation_url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center text-primary hover:underline font-medium"
+                      >
+                        {getSiteName(item.activation_url)}
+                        <ExternalLink className="h-3 w-3 ml-1 opacity-70" />
+                      </a>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
                   <TableCell>{item.server || '-'}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
@@ -188,7 +218,7 @@ export default function MacAddresses() {
               ))}
               {filteredItems.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     {search ? 'Nenhum resultado encontrado para a pesquisa' : 'Nenhum MAC cadastrado'}
                   </TableCell>
                 </TableRow>
