@@ -14,11 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import {
   Megaphone, Send, Image as ImageIcon, Trash2, CheckCircle2, XCircle,
-  AlertTriangle, Pause, Play, ShieldAlert, Sparkles, Search, UserCheck
+  AlertTriangle, Pause, Play, ShieldAlert, Sparkles, Search, UserCheck, Smartphone, CheckCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 import { CLIENT_STATUS_COLORS, CLIENT_STATUS_COLORS_BORDERED } from '@/lib/utils';
+import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 
@@ -101,6 +102,65 @@ export default function Broadcast() {
   const servers = useMemo(() => {
     return [...new Set(clients.map(c => c.server).filter(Boolean).sort())];
   }, [clients]);
+
+  // Color map para aplicativos/servidores
+  const serverColorMap = useMemo(() => {
+    return buildServerColorMap(clients.map(c => c.server));
+  }, [clients]);
+
+  // Estatísticas e controle de seleção por aplicativo
+  const appStats = useMemo(() => {
+    const map = new Map<string, { total: number; selected: number; clientIds: string[] }>();
+    clients.forEach(c => {
+      const appName = c.server?.trim() || 'Sem aplicativo';
+      if (!map.has(appName)) {
+        map.set(appName, { total: 0, selected: 0, clientIds: [] });
+      }
+      const item = map.get(appName)!;
+      item.total++;
+      item.clientIds.push(c.id);
+      if (selectedIds.has(c.id)) {
+        item.selected++;
+      }
+    });
+
+    return Array.from(map.entries())
+      .map(([name, data]) => ({
+        name,
+        ...data,
+        isAllSelected: data.clientIds.length > 0 && data.clientIds.every(id => selectedIds.has(id)),
+        isNoneSelected: data.selected === 0,
+        isPartialSelected: data.selected > 0 && data.selected < data.total,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [clients, selectedIds]);
+
+  const handleToggleSelectByApp = (appName: string) => {
+    const targetClients = clients.filter(c => (c.server?.trim() || 'Sem aplicativo') === appName);
+    const targetIds = targetClients.map(c => c.id);
+    const allSelected = targetIds.length > 0 && targetIds.every(id => selectedIds.has(id));
+
+    const next = new Set(selectedIds);
+    if (allSelected) {
+      targetIds.forEach(id => next.delete(id));
+      toast.info(`Desmarcados clientes do aplicativo "${appName}"`);
+    } else {
+      targetIds.forEach(id => next.add(id));
+      toast.success(`Selecionados todos do aplicativo "${appName}" (${targetIds.length})`);
+    }
+    setSelectedIds(next);
+  };
+
+  const handleSelectAllClients = () => {
+    const allValid = new Set(clients.filter(c => c.status !== 'cancelado').map(c => c.id));
+    setSelectedIds(allValid);
+    toast.success(`Todos os clientes válidos selecionados (${allValid.size})`);
+  };
+
+  const handleClearAllClients = () => {
+    setSelectedIds(new Set());
+    toast.info('Seleção de destinatários limpa');
+  };
 
   // Toggle selection for all visible clients
   const allFilteredSelected = useMemo(() => {
@@ -489,16 +549,79 @@ export default function Broadcast() {
                 </Select>
                 <Select value={serverFilter} onValueChange={setServerFilter}>
                   <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Servidor" />
+                    <SelectValue placeholder="Aplicativo / Servidor" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os servidores</SelectItem>
+                    <SelectItem value="all">Todos os aplicativos</SelectItem>
                     {servers.map(s => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Opções de Seleção Rápida por Aplicativo */}
+              {appStats.length > 0 && (
+                <div className="pt-2 space-y-2 border-t mt-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
+                    <span className="font-semibold text-muted-foreground flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                      <Smartphone className="h-3.5 w-3.5 text-primary" />
+                      Selecionar por Aplicativo:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllClients}
+                        className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
+                      >
+                        Marcar todos
+                      </button>
+                      <span className="text-muted-foreground text-[10px]">•</span>
+                      <button
+                        type="button"
+                        onClick={handleClearAllClients}
+                        className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        Limpar seleção
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {appStats.map(app => {
+                      const isFull = app.isAllSelected;
+                      const isPartial = app.isPartialSelected;
+                      return (
+                        <button
+                          key={app.name}
+                          type="button"
+                          onClick={() => handleToggleSelectByApp(app.name)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
+                            isFull
+                              ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                              : isPartial
+                              ? 'bg-primary/10 text-primary border-primary/40'
+                              : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                          }`}
+                          title={`Clique para ${isFull ? 'desmarcar' : 'selecionar'} clientes de ${app.name}`}
+                        >
+                          <span className="truncate max-w-[120px]">{app.name}</span>
+                          <span
+                            className={`text-[10px] px-1 rounded-sm font-semibold ${
+                              isFull
+                                ? 'bg-primary-foreground/20 text-primary-foreground'
+                                : isPartial
+                                ? 'bg-primary/20 text-primary'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {app.selected}/{app.total}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </CardHeader>
 
             <CardContent className="flex-1 overflow-auto p-0">
@@ -513,6 +636,7 @@ export default function Broadcast() {
                       />
                     </TableHead>
                     <TableHead>Cliente</TableHead>
+                    <TableHead>Aplicativo</TableHead>
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -520,13 +644,13 @@ export default function Broadcast() {
                 <TableBody>
                   {loadingClients ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
                         Carregando clientes...
                       </TableCell>
                     </TableRow>
                   ) : filteredClients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
                         Nenhum cliente encontrado com os filtros aplicados.
                       </TableCell>
                     </TableRow>
@@ -548,6 +672,9 @@ export default function Broadcast() {
                           <TableCell>
                             <p className="font-medium text-xs text-foreground">{client.name}</p>
                             <p className="text-[11px] text-muted-foreground">{client.plan || 'Sem plano'}</p>
+                          </TableCell>
+                          <TableCell>
+                            <ServerBadge name={client.server || 'Sem app'} colorMap={serverColorMap} />
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground font-mono">
                             {client.phone}
