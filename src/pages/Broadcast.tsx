@@ -12,16 +12,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Megaphone, Send, Image as ImageIcon, Trash2, CheckCircle2, XCircle,
-  AlertTriangle, Pause, Play, ShieldAlert, Sparkles, Search, UserCheck, Smartphone, CheckCheck
+  AlertTriangle, Pause, Play, ShieldAlert, Sparkles, Search, UserCheck,
+  Server, Globe, ExternalLink, CheckCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
-import { CLIENT_STATUS_COLORS, CLIENT_STATUS_COLORS_BORDERED } from '@/lib/utils';
+import { CLIENT_STATUS_COLORS_BORDERED } from '@/lib/utils';
 import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 
 type Client = Database['public']['Tables']['clients']['Row'];
+type MacAddress = Database['public']['Tables']['mac_addresses']['Row'];
 
 interface SendResultLog {
   clientId: string;
@@ -31,9 +34,29 @@ interface SendResultLog {
   error?: string;
 }
 
+interface ClientSiteItem {
+  siteName: string;
+  rawUrl: string;
+  mac: string;
+}
+
+const getSiteName = (url: string | null): string => {
+  if (!url) return '';
+  try {
+    const formattedUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
+    const parsed = new URL(formattedUrl);
+    let host = parsed.hostname.replace(/^www\./, '');
+    const name = host.split('.')[0];
+    return name || host;
+  } catch {
+    return url;
+  }
+};
+
 export default function Broadcast() {
   const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
+  const [macAddresses, setMacAddresses] = useState<MacAddress[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
 
   // Form State
@@ -47,6 +70,10 @@ export default function Broadcast() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [serverFilter, setServerFilter] = useState('all');
+  const [siteFilter, setSiteFilter] = useState('all');
+
+  // Aba ativa nos destinatários: 'servers' (Geral / Servidores) ou 'sites' (Pesquisa por Site)
+  const [recipientTab, setRecipientTab] = useState<'servers' | 'sites'>('servers');
 
   // Broadcast Progress Modal State
   const [isBroadcasting, setIsBroadcasting] = useState(false);
@@ -60,63 +87,107 @@ export default function Broadcast() {
 
   const isCancelledRef = useRef(false);
 
-  // Fetch Clients
+  // Fetch Clients & MAC Addresses
   useEffect(() => {
     if (!user) return;
     setLoadingClients(true);
-    supabase
-      .from('clients')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('name', { ascending: true })
-      .then(({ data, error }) => {
-        setLoadingClients(false);
-        if (error) {
-          toast.error('Erro ao carregar clientes: ' + error.message);
-          return;
-        }
-        if (data) {
-          setClients(data);
-          // By default, select all valid clients (excluding cancelado)
-          const validIds = new Set(data.filter(c => c.status !== 'cancelado').map(c => c.id));
-          setSelectedIds(validIds);
-        }
-      });
+
+    Promise.all([
+      supabase
+        .from('clients')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name', { ascending: true }),
+      supabase
+        .from('mac_addresses')
+        .select('*')
+        .eq('user_id', user.id)
+    ]).then(([clientsRes, macsRes]) => {
+      setLoadingClients(false);
+
+      if (clientsRes.error) {
+        toast.error('Erro ao carregar clientes: ' + clientsRes.error.message);
+        return;
+      }
+
+      if (clientsRes.data) {
+        setClients(clientsRes.data);
+        // Por padrão, seleciona todos os clientes ativos/válidos
+        const validIds = new Set(clientsRes.data.filter(c => c.status !== 'cancelado').map(c => c.id));
+        setSelectedIds(validIds);
+      }
+
+      if (macsRes.data) {
+        setMacAddresses(macsRes.data);
+      }
+    });
   }, [user?.id]);
 
-  // Filtered Clients list
-  const filteredClients = useMemo(() => {
-    return clients.filter(c => {
-      const matchSearch =
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.phone.includes(searchQuery) ||
-        (c.plan && c.plan.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Mapa de Clientes -> Sites cadastrados via MAC Address
+  const clientSitesMap = useMemo(() => {
+    const map = new Map<string, ClientSiteItem[]>();
 
-      const matchStatus = statusFilter === 'all' || c.status === statusFilter;
-      const matchServer = serverFilter === 'all' || c.server === serverFilter;
-      return matchSearch && matchStatus && matchServer;
+    clients.forEach(c => {
+      const matchedMacs = macAddresses.filter(m =>
+        (m.client_id && m.client_id === c.id) ||
+        (m.client_name && m.client_name.trim().toLowerCase() === c.name.trim().toLowerCase())
+      );
+
+      const items: ClientSiteItem[] = [];
+      matchedMacs.forEach(m => {
+        if (m.activation_url) {
+          items.push({
+            siteName: getSiteName(m.activation_url),
+            rawUrl: m.activation_url,
+            mac: m.mac,
+          });
+        }
+      });
+
+      if (items.length > 0) {
+        map.set(c.id, items);
+      }
     });
-  }, [clients, searchQuery, statusFilter, serverFilter]);
 
-  // Unique servers for filter dropdown
+    return map;
+  }, [clients, macAddresses]);
+
+  // Lista de clientes que possuem aplicativo cadastrado em site
+  const clientsWithSites = useMemo(() => {
+    return clients.filter(c => clientSitesMap.has(c.id));
+  }, [clients, clientSitesMap]);
+
+  // Sites únicos cadastrados
+  const uniqueSites = useMemo(() => {
+    const set = new Set<string>();
+    macAddresses.forEach(m => {
+      if (m.activation_url) {
+        const name = getSiteName(m.activation_url).trim();
+        if (name) set.add(name);
+      }
+    });
+    return Array.from(set).sort();
+  }, [macAddresses]);
+
+  // Servidores únicos para o filtro
   const servers = useMemo(() => {
-    return [...new Set(clients.map(c => c.server).filter(Boolean).sort())];
+    return [...new Set(clients.map(c => c.server).filter(Boolean).sort())] as string[];
   }, [clients]);
 
-  // Color map para aplicativos/servidores
+  // Color map para servidores
   const serverColorMap = useMemo(() => {
     return buildServerColorMap(clients.map(c => c.server));
   }, [clients]);
 
-  // Estatísticas e controle de seleção por aplicativo
-  const appStats = useMemo(() => {
+  // Estatísticas de Servidores
+  const serverStats = useMemo(() => {
     const map = new Map<string, { total: number; selected: number; clientIds: string[] }>();
     clients.forEach(c => {
-      const appName = c.server?.trim() || 'Sem aplicativo';
-      if (!map.has(appName)) {
-        map.set(appName, { total: 0, selected: 0, clientIds: [] });
+      const serverName = c.server?.trim() || 'Sem servidor';
+      if (!map.has(serverName)) {
+        map.set(serverName, { total: 0, selected: 0, clientIds: [] });
       }
-      const item = map.get(appName)!;
+      const item = map.get(serverName)!;
       item.total++;
       item.clientIds.push(c.id);
       if (selectedIds.has(c.id)) {
@@ -129,38 +200,65 @@ export default function Broadcast() {
         name,
         ...data,
         isAllSelected: data.clientIds.length > 0 && data.clientIds.every(id => selectedIds.has(id)),
-        isNoneSelected: data.selected === 0,
         isPartialSelected: data.selected > 0 && data.selected < data.total,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [clients, selectedIds]);
 
-  const handleToggleSelectByApp = (appName: string) => {
-    const targetClients = clients.filter(c => (c.server?.trim() || 'Sem aplicativo') === appName);
-    const targetIds = targetClients.map(c => c.id);
-    const allSelected = targetIds.length > 0 && targetIds.every(id => selectedIds.has(id));
+  // Estatísticas de Sites
+  const siteStats = useMemo(() => {
+    const map = new Map<string, { total: number; selected: number; clientIds: string[] }>();
 
-    const next = new Set(selectedIds);
-    if (allSelected) {
-      targetIds.forEach(id => next.delete(id));
-      toast.info(`Desmarcados clientes do aplicativo "${appName}"`);
-    } else {
-      targetIds.forEach(id => next.add(id));
-      toast.success(`Selecionados todos do aplicativo "${appName}" (${targetIds.length})`);
-    }
-    setSelectedIds(next);
-  };
+    clientsWithSites.forEach(c => {
+      const sites = clientSitesMap.get(c.id) || [];
+      const distinctSitesForClient = new Set(sites.map(s => s.siteName));
 
-  const handleSelectAllClients = () => {
-    const allValid = new Set(clients.filter(c => c.status !== 'cancelado').map(c => c.id));
-    setSelectedIds(allValid);
-    toast.success(`Todos os clientes válidos selecionados (${allValid.size})`);
-  };
+      distinctSitesForClient.forEach(siteName => {
+        if (!map.has(siteName)) {
+          map.set(siteName, { total: 0, selected: 0, clientIds: [] });
+        }
+        const item = map.get(siteName)!;
+        item.total++;
+        item.clientIds.push(c.id);
+        if (selectedIds.has(c.id)) {
+          item.selected++;
+        }
+      });
+    });
 
-  const handleClearAllClients = () => {
-    setSelectedIds(new Set());
-    toast.info('Seleção de destinatários limpa');
-  };
+    return Array.from(map.entries())
+      .map(([name, data]) => ({
+        name,
+        ...data,
+        isAllSelected: data.clientIds.length > 0 && data.clientIds.every(id => selectedIds.has(id)),
+        isPartialSelected: data.selected > 0 && data.selected < data.total,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [clientsWithSites, clientSitesMap, selectedIds]);
+
+  // Lista de clientes filtrada de acordo com a aba ativa
+  const filteredClients = useMemo(() => {
+    const baseList = recipientTab === 'sites' ? clientsWithSites : clients;
+
+    return baseList.filter(c => {
+      const matchSearch =
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.phone.includes(searchQuery) ||
+        (c.plan && c.plan.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const matchStatus = statusFilter === 'all' || c.status === statusFilter;
+
+      if (recipientTab === 'servers') {
+        const matchServer = serverFilter === 'all' || c.server === serverFilter;
+        return matchSearch && matchStatus && matchServer;
+      } else {
+        // Aba 'sites': filtra por site
+        const sites = clientSitesMap.get(c.id) || [];
+        const matchSite = siteFilter === 'all' || sites.some(s => s.siteName.toLowerCase() === siteFilter.toLowerCase());
+        return matchSearch && matchStatus && matchSite;
+      }
+    });
+  }, [recipientTab, clients, clientsWithSites, searchQuery, statusFilter, serverFilter, siteFilter, clientSitesMap]);
 
   // Toggle selection for all visible clients
   const allFilteredSelected = useMemo(() => {
@@ -186,6 +284,57 @@ export default function Broadcast() {
       next.add(id);
     }
     setSelectedIds(next);
+  };
+
+  // Seleção rápida por Servidor
+  const handleToggleSelectByServer = (serverName: string) => {
+    const targetClients = clients.filter(c => (c.server?.trim() || 'Sem servidor') === serverName);
+    const targetIds = targetClients.map(c => c.id);
+    const allSelected = targetIds.length > 0 && targetIds.every(id => selectedIds.has(id));
+
+    const next = new Set(selectedIds);
+    if (allSelected) {
+      targetIds.forEach(id => next.delete(id));
+      toast.info(`Desmarcados clientes do servidor "${serverName}"`);
+    } else {
+      targetIds.forEach(id => next.add(id));
+      toast.success(`Selecionados todos do servidor "${serverName}" (${targetIds.length})`);
+    }
+    setSelectedIds(next);
+  };
+
+  // Seleção rápida por Site
+  const handleToggleSelectBySite = (siteName: string) => {
+    const targetIds: string[] = [];
+    clientsWithSites.forEach(c => {
+      const sites = clientSitesMap.get(c.id) || [];
+      if (sites.some(s => s.siteName.toLowerCase() === siteName.toLowerCase())) {
+        targetIds.push(c.id);
+      }
+    });
+
+    const allSelected = targetIds.length > 0 && targetIds.every(id => selectedIds.has(id));
+    const next = new Set(selectedIds);
+    if (allSelected) {
+      targetIds.forEach(id => next.delete(id));
+      toast.info(`Desmarcados clientes do site "${siteName}"`);
+    } else {
+      targetIds.forEach(id => next.add(id));
+      toast.success(`Selecionados clientes do site "${siteName}" (${targetIds.length})`);
+    }
+    setSelectedIds(next);
+  };
+
+  const handleSelectAllVisible = () => {
+    const next = new Set(selectedIds);
+    filteredClients.forEach(c => next.add(c.id));
+    setSelectedIds(next);
+    toast.success(`${filteredClients.length} clientes selecionados`);
+  };
+
+  const handleClearAllSelected = () => {
+    setSelectedIds(new Set());
+    toast.info('Seleção limpa');
   };
 
   // Image Upload handler (Base64 conversion)
@@ -267,7 +416,6 @@ export default function Broadcast() {
     for (let i = 0; i < initialLogs.length; i++) {
       if (isCancelledRef.current) break;
 
-      // Check pause
       while (isPausedRef.current) {
         if (isCancelledRef.current) break;
         await new Promise(r => setTimeout(r, 500));
@@ -276,8 +424,6 @@ export default function Broadcast() {
       if (isCancelledRef.current) break;
 
       setCurrentIndex(i);
-
-      // Update log to sending
       setLogs(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'sending' } : item));
 
       const target = initialLogs[i];
@@ -299,9 +445,8 @@ export default function Broadcast() {
         setLogs(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'failed', error: err.message || 'Falha na requisição' } : item));
       }
 
-      // Apply anti-spam safety delay between sends (unless it's the last item or cancelled)
       if (i < initialLogs.length - 1 && !isCancelledRef.current) {
-        const randomVariation = (Math.random() * 2 - 1); // -1 to +1 sec
+        const randomVariation = (Math.random() * 2 - 1);
         const actualDelayMs = Math.max(2, delaySeconds + randomVariation) * 1000;
         await new Promise(r => setTimeout(r, actualDelayMs));
       }
@@ -336,7 +481,7 @@ export default function Broadcast() {
             Aviso Geral (Broadcast)
           </h1>
           <p className="text-sm text-muted-foreground">
-            Envie comunicados, novidades ou avisos para a sua lista de clientes no WhatsApp com imagem e controle de segurança anti-bloqueio.
+            Envie comunicados para seus clientes no WhatsApp filtrando por servidores ou por sites dos aplicativos cadastrados.
           </p>
         </div>
       </div>
@@ -348,7 +493,7 @@ export default function Broadcast() {
           <div className="text-xs space-y-1">
             <p className="font-semibold text-sm">Dicas Importantes para Evitar Bloqueio do WhatsApp:</p>
             <ul className="list-disc list-inside space-y-0.5 text-amber-800 dark:text-amber-300">
-              <li>Use a tag <code className="bg-amber-200/50 dark:bg-amber-900/50 px-1 rounded">{'{nome}'}</code> para garantir que o texto enviado seja único para cada cliente.</li>
+              <li>Use a tag <code className="bg-amber-200/50 dark:bg-amber-900/50 px-1 rounded">{'{nome}'}</code> para garantir que o texto seja único para cada cliente.</li>
               <li>Recomendamos manter o intervalo de envio em no mínimo <strong>8 segundos</strong> por cliente.</li>
               <li>Evite mensagens com termos agressivos ou links desconhecidos para não gerar denúncias de SPAM.</li>
             </ul>
@@ -358,7 +503,7 @@ export default function Broadcast() {
 
       {/* Main Grid: 2 Columns */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Message Compositor & Image Upload (5 cols) */}
+        {/* Left Column: Message Compositor (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
           <Card>
             <CardHeader className="pb-3">
@@ -508,7 +653,7 @@ export default function Broadcast() {
         {/* Right Column: Recipient Selection Table (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           <Card className="h-full flex flex-col">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
@@ -524,8 +669,26 @@ export default function Broadcast() {
                 </Badge>
               </div>
 
+              {/* ABAS DE PESQUISA: Por Servidores vs Pesquisa por Site */}
+              <Tabs
+                value={recipientTab}
+                onValueChange={(val: any) => setRecipientTab(val)}
+                className="w-full"
+              >
+                <TabsList className="grid grid-cols-2 w-full">
+                  <TabsTrigger value="servers" className="text-xs flex items-center gap-1.5">
+                    <Server className="h-3.5 w-3.5" />
+                    <span>Todos Servidores ({clients.length})</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="sites" className="text-xs flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    <span>Pesquisa por Site ({clientsWithSites.length})</span>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
               {/* Filters & Search */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -535,6 +698,7 @@ export default function Broadcast() {
                     onChange={e => setSearchQuery(e.target.value)}
                   />
                 </div>
+
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="text-xs">
                     <SelectValue placeholder="Status do cliente" />
@@ -547,79 +711,166 @@ export default function Broadcast() {
                     <SelectItem value="suspenso">Suspensos</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={serverFilter} onValueChange={setServerFilter}>
-                  <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Aplicativo / Servidor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os aplicativos</SelectItem>
-                    {servers.map(s => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+                {/* Dropdown contextual conforme a aba selecionada */}
+                {recipientTab === 'servers' ? (
+                  <Select value={serverFilter} onValueChange={setServerFilter}>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Servidor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Servidores</SelectItem>
+                      {servers.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={siteFilter} onValueChange={setSiteFilter}>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Site do aplicativo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os sites</SelectItem>
+                      {uniqueSites.map(site => (
+                        <SelectItem key={site} value={site}>{site}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
-              {/* Opções de Seleção Rápida por Aplicativo */}
-              {appStats.length > 0 && (
-                <div className="pt-2 space-y-2 border-t mt-2">
+              {/* BARRA DE SELEÇÃO RÁPIDA: CONTEXTUAL (Servidor vs Site) */}
+              {recipientTab === 'servers' ? (
+                /* Seleção por Servidor */
+                serverStats.length > 0 && (
+                  <div className="pt-2 space-y-1.5 border-t">
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
+                      <span className="font-semibold text-muted-foreground flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                        <Server className="h-3.5 w-3.5 text-primary" />
+                        Selecionar por Servidor:
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllVisible}
+                          className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
+                        >
+                          Marcar todos visíveis
+                        </button>
+                        <span className="text-muted-foreground text-[10px]">•</span>
+                        <button
+                          type="button"
+                          onClick={handleClearAllSelected}
+                          className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          Limpar seleção
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {serverStats.map(srv => {
+                        const isFull = srv.isAllSelected;
+                        const isPartial = srv.isPartialSelected;
+                        return (
+                          <button
+                            key={srv.name}
+                            type="button"
+                            onClick={() => handleToggleSelectByServer(srv.name)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
+                              isFull
+                                ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                                : isPartial
+                                ? 'bg-primary/10 text-primary border-primary/40'
+                                : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                            }`}
+                            title={`Clique para ${isFull ? 'desmarcar' : 'selecionar'} clientes de ${srv.name}`}
+                          >
+                            <span className="truncate max-w-[120px]">{srv.name}</span>
+                            <span
+                              className={`text-[10px] px-1 rounded-sm font-semibold ${
+                                isFull
+                                  ? 'bg-primary-foreground/20 text-primary-foreground'
+                                  : isPartial
+                                  ? 'bg-primary/20 text-primary'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {srv.selected}/{srv.total}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )
+              ) : (
+                /* Seleção por Site */
+                <div className="pt-2 space-y-1.5 border-t">
                   <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                     <span className="font-semibold text-muted-foreground flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-                      <Smartphone className="h-3.5 w-3.5 text-primary" />
-                      Selecionar por Aplicativo:
+                      <Globe className="h-3.5 w-3.5 text-primary" />
+                      Selecionar por Site (Aplicativo):
                     </span>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={handleSelectAllClients}
+                        onClick={handleSelectAllVisible}
                         className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
                       >
-                        Marcar todos
+                        Marcar todos visíveis
                       </button>
                       <span className="text-muted-foreground text-[10px]">•</span>
                       <button
                         type="button"
-                        onClick={handleClearAllClients}
+                        onClick={handleClearAllSelected}
                         className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                       >
                         Limpar seleção
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {appStats.map(app => {
-                      const isFull = app.isAllSelected;
-                      const isPartial = app.isPartialSelected;
-                      return (
-                        <button
-                          key={app.name}
-                          type="button"
-                          onClick={() => handleToggleSelectByApp(app.name)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
-                            isFull
-                              ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                              : isPartial
-                              ? 'bg-primary/10 text-primary border-primary/40'
-                              : 'bg-background hover:bg-muted text-muted-foreground border-border'
-                          }`}
-                          title={`Clique para ${isFull ? 'desmarcar' : 'selecionar'} clientes de ${app.name}`}
-                        >
-                          <span className="truncate max-w-[120px]">{app.name}</span>
-                          <span
-                            className={`text-[10px] px-1 rounded-sm font-semibold ${
+
+                  {siteStats.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {siteStats.map(st => {
+                        const isFull = st.isAllSelected;
+                        const isPartial = st.isPartialSelected;
+                        return (
+                          <button
+                            key={st.name}
+                            type="button"
+                            onClick={() => handleToggleSelectBySite(st.name)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
                               isFull
-                                ? 'bg-primary-foreground/20 text-primary-foreground'
+                                ? 'bg-primary text-primary-foreground border-primary shadow-xs'
                                 : isPartial
-                                ? 'bg-primary/20 text-primary'
-                                : 'bg-muted text-muted-foreground'
+                                ? 'bg-primary/10 text-primary border-primary/40'
+                                : 'bg-background hover:bg-muted text-muted-foreground border-border'
                             }`}
+                            title={`Clique para ${isFull ? 'desmarcar' : 'selecionar'} clientes que usam ${st.name}`}
                           >
-                            {app.selected}/{app.total}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                            <span className="truncate max-w-[120px] font-medium">{st.name}</span>
+                            <span
+                              className={`text-[10px] px-1 rounded-sm font-semibold ${
+                                isFull
+                                  ? 'bg-primary-foreground/20 text-primary-foreground'
+                                  : isPartial
+                                  ? 'bg-primary/20 text-primary'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {st.selected}/{st.total}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Nenhum site encontrado com URL nos MACs cadastrados.
+                    </p>
+                  )}
                 </div>
               )}
             </CardHeader>
@@ -636,7 +887,14 @@ export default function Broadcast() {
                       />
                     </TableHead>
                     <TableHead>Cliente</TableHead>
-                    <TableHead>Aplicativo</TableHead>
+                    {recipientTab === 'servers' ? (
+                      <TableHead>Servidor</TableHead>
+                    ) : (
+                      <>
+                        <TableHead>Site</TableHead>
+                        <TableHead>MAC Address</TableHead>
+                      </>
+                    )}
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -644,19 +902,23 @@ export default function Broadcast() {
                 <TableBody>
                   {loadingClients ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
+                      <TableCell colSpan={recipientTab === 'sites' ? 6 : 5} className="text-center py-8 text-muted-foreground text-xs">
                         Carregando clientes...
                       </TableCell>
                     </TableRow>
                   ) : filteredClients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
-                        Nenhum cliente encontrado com os filtros aplicados.
+                      <TableCell colSpan={recipientTab === 'sites' ? 6 : 5} className="text-center py-8 text-muted-foreground text-xs">
+                        {recipientTab === 'sites'
+                          ? 'Nenhum cliente encontrado com aplicativo cadastrado em site.'
+                          : 'Nenhum cliente encontrado com os filtros aplicados.'}
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredClients.map(client => {
                       const isSelected = selectedIds.has(client.id);
+                      const sites = clientSitesMap.get(client.id) || [];
+
                       return (
                         <TableRow
                           key={client.id}
@@ -673,9 +935,39 @@ export default function Broadcast() {
                             <p className="font-medium text-xs text-foreground">{client.name}</p>
                             <p className="text-[11px] text-muted-foreground">{client.plan || 'Sem plano'}</p>
                           </TableCell>
-                          <TableCell>
-                            <ServerBadge name={client.server || 'Sem app'} colorMap={serverColorMap} />
-                          </TableCell>
+
+                          {recipientTab === 'servers' ? (
+                            <TableCell>
+                              <ServerBadge name={client.server || 'Sem servidor'} colorMap={serverColorMap} />
+                            </TableCell>
+                          ) : (
+                            <>
+                              {/* Coluna Site com link e ícone idêntico ao anexo do usuário */}
+                              <TableCell onClick={e => e.stopPropagation()}>
+                                <div className="space-y-1">
+                                  {sites.map((st, i) => (
+                                    <a
+                                      key={i}
+                                      href={st.rawUrl.startsWith('http') ? st.rawUrl : `https://${st.rawUrl}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center text-primary hover:underline font-medium text-xs mr-2"
+                                    >
+                                      {st.siteName}
+                                      <ExternalLink className="h-3 w-3 ml-1 opacity-70" />
+                                    </a>
+                                  ))}
+                                  {sites.length === 0 && (
+                                    <span className="text-xs text-muted-foreground">-</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                {sites.map(s => s.mac).join(', ') || '-'}
+                              </TableCell>
+                            </>
+                          )}
+
                           <TableCell className="text-xs text-muted-foreground font-mono">
                             {client.phone}
                           </TableCell>
