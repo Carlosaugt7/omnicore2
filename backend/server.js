@@ -12,6 +12,7 @@ const whatsappRoutes = require('./routes/whatsapp');
 const webhookRoutes = require('./routes/webhooks');
 const schedulerRoutes = require('./routes/scheduler');
 const resellerRoutes = require('./routes/resellers');
+const panelRoutes = require('./routes/panels');
 
 // ─────────────────────────────────────────────────────────────
 // Validate required environment variables
@@ -125,6 +126,7 @@ app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/resellers', resellerRoutes);
+app.use('/api/panels', panelRoutes);
 
 // ─────────────────────────────────────────────────────────────
 // 404 handler

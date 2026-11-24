@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, MoreHorizontal, Pencil, Trash2, DollarSign, AlertTriangle, TrendingDown, CalendarClock, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
-import { formatBRL, TRANSACTION_STATUS_COLORS, TRANSACTION_TYPE_LABELS } from '@/lib/utils';
+import { formatBRL, TRANSACTION_STATUS_COLORS, TRANSACTION_TYPE_LABELS, formatDateBR } from '@/lib/utils';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useClients } from '@/hooks/useClients';
 
@@ -308,7 +308,7 @@ export default function Financial() {
                   <TableCell className="font-medium">{t.client_name || t.description || '-'}</TableCell>
                   <TableCell>{t.plan || '-'}</TableCell>
                   <TableCell>{t.value ? formatBRL(t.value) : '-'}</TableCell>
-                  <TableCell>{t.due_date || new Date(t.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                  <TableCell>{formatDateBR(t.due_date || t.created_at)}</TableCell>
                   <TableCell>{t.type ? TRANSACTION_TYPE_LABELS[t.type] || t.type : '-'}</TableCell>
                   <TableCell>
                     <Badge variant="secondary" className={TRANSACTION_STATUS_COLORS[t.status || ''] || ''}>{t.status || '-'}</Badge>
@@ -382,7 +382,7 @@ export default function Financial() {
                 {duplicates.map((d, i) => (
                   <TableRow key={i}>
                     <TableCell className="font-mono text-xs">{d.client_id.slice(0, 8)}...</TableCell>
-                    <TableCell>{d.due_date}</TableCell>
+                    <TableCell>{formatDateBR(d.due_date)}</TableCell>
                     <TableCell>{TRANSACTION_TYPE_LABELS[d.type] || d.type}</TableCell>
                     <TableCell><Badge variant="destructive">{d.total} registros</Badge></TableCell>
                     <TableCell>

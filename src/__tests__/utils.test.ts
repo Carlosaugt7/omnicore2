@@ -58,12 +58,16 @@ describe('getLocalDateStr', () => {
 // ── formatDate ─────────────────────────────────────────────────
 
 describe('formatDate', () => {
-  it('formats date string to DD/MM/AAAA', () => {
-    expect(formatDate('2024-06-15')).toBe('15/06/2024');
+  it('formats date string to DD-MM-AAAA (pt-BR default)', () => {
+    expect(formatDate('2024-06-15')).toBe('15-06-2024');
+  });
+
+  it('formats with custom slash separator if requested', () => {
+    expect(formatDate('2024-06-15', '/')).toBe('15/06/2024');
   });
 
   it('formats year boundary', () => {
-    expect(formatDate('2024-01-01')).toBe('01/01/2024');
+    expect(formatDate('2024-01-01')).toBe('01-01-2024');
   });
 });
 

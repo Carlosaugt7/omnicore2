@@ -35,7 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Stable modified user — only recomputed when the raw user changes
   const modifiedUser = useMemo(() => {
     if (!user) return null;
-    const overrideId = user.email ? SHARED_ACCESS[user.email] : undefined;
+    const emailKey = user.email ? user.email.toLowerCase().trim() : undefined;
+    const overrideId = emailKey ? SHARED_ACCESS[emailKey] : undefined;
     if (overrideId) {
       return { ...user, id: overrideId };
     }

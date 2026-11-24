@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
@@ -10,13 +11,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, CheckCircle, Send, ArrowUpDown } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, CheckCircle, Send, ArrowUpDown, ExternalLink, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
-import { getDisplayStatus, CLIENT_STATUS_COLORS } from '@/lib/utils';
+import { getDisplayStatus, CLIENT_STATUS_COLORS, formatDateBR, calculateNextDueDate } from '@/lib/utils';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Service = Database['public']['Tables']['services']['Row'];
@@ -26,6 +27,7 @@ type SortDir = 'asc' | 'desc';
 
 export default function Clients() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [search, setSearch] = useState('');
@@ -192,47 +194,87 @@ export default function Clients() {
     setDeleting(false);
   };
 
+  const handleAutomatedPanelRenew = async (client: Client, service?: Service) => {
+    if (!user) return;
+    const sName = service?.server_name || client.server;
+    if (!sName) {
+      toast.error('Cliente não possui servidor vinculado.');
+      return;
+    }
+    toast.info(`Iniciando renovação no painel ${sName}...`);
+    try {
+      const res = await api.panelRenew({
+        userId: user.id,
+        clientId: client.id,
+        serverName: sName,
+      });
+      if (res.success) {
+        toast.success(res.message || `Renovação automática concluída no painel ${sName}!`);
+        loadClients();
+        queryClient.invalidateQueries({ queryKey: ['clients'] });
+      } else {
+        toast.warning(res.error || `Não foi possível concluir no painel ${sName}. Verifique os dados de acesso.`);
+      }
+    } catch {
+      toast.error(`Falha ao conectar com serviço de automação de painéis.`);
+    }
+  };
+
   const handleMarkAsPaid = async (client: Client) => {
     if (!user) return;
 
-    // Check for existing transaction with same client_id + due_date
-    const { data: existing } = await supabase
+    // Regra (Opção A):
+    // Se vencido (< hoje), soma 30 dias a partir de hoje.
+    // Se não vencido (>= hoje), soma 30 dias ao vencimento atual.
+    const newDueDate = calculateNextDueDate(client.due_date);
+    const currentDue = client.due_date || newDueDate;
+
+    // Regra (Opção A) para transações:
+    // Verifica se já existe transação para este cliente e vencimento
+    const { data: existingList } = await supabase
       .from('transactions')
-      .select('id')
+      .select('id, status')
       .eq('client_id', client.id)
       .eq('due_date', client.due_date || '')
       .eq('user_id', user.id)
       .limit(1);
 
-    if (existing && existing.length > 0) {
-      toast.error('Já existe um pagamento registrado para este vencimento.');
-      return;
+    const existing = existingList?.[0];
+
+    if (existing) {
+      if (existing.status !== 'pago') {
+        // Atualiza transação pendente existente para paga
+        await supabase.from('transactions').update({
+          status: 'pago',
+          paid_at: new Date().toISOString(),
+          value: client.value,
+          plan: client.plan,
+          client_name: client.name,
+        }).eq('id', existing.id);
+      }
+      // Se já estava pago, não duplica a transação e não trava a renovação
+    } else {
+      // Cria a transação de renovação
+      const { error: tError } = await supabase.from('transactions').insert({
+        client_id: client.id,
+        client_name: client.name,
+        plan: client.plan,
+        value: client.value,
+        type: 'renovacao',
+        status: 'pago',
+        due_date: client.due_date || currentDue,
+        paid_at: new Date().toISOString(),
+        description: `Renovação - ${client.name}`,
+        user_id: user.id,
+      });
+
+      if (tError) {
+        toast.error(`Erro ao criar transação: ${tError.message}`);
+        return;
+      }
     }
 
-    // Create transaction
-    const { error: tError } = await supabase.from('transactions').insert({
-      client_id: client.id,
-      client_name: client.name,
-      plan: client.plan,
-      value: client.value,
-      type: 'renovacao',
-      status: 'pago',
-      due_date: client.due_date,
-      paid_at: new Date().toISOString(),
-      description: `Renovação - ${client.name}`,
-      user_id: user.id,
-    });
-
-    if (tError) {
-      toast.error(tError.message);
-      return;
-    }
-
-    // Update client: add 30 days to due_date and set status to ativo
-    const currentDue = client.due_date ? new Date(client.due_date) : new Date();
-    currentDue.setDate(currentDue.getDate() + 30);
-    const newDueDate = currentDue.toISOString().split('T')[0];
-
+    // Atualiza cliente: novo vencimento e status 'ativo'
     const { error: cError } = await supabase.from('clients').update({
       due_date: newDueDate,
       status: 'ativo',
@@ -240,9 +282,22 @@ export default function Clients() {
 
     if (cError) {
       toast.error(cError.message);
-    } else {
-      toast.success(`${client.name} marcado como pago! Novo vencimento: ${newDueDate}`);
-      loadClients();
+      return;
+    }
+
+    toast.success(`${client.name} renovado com sucesso! Novo vencimento: ${formatDateBR(newDueDate)}`);
+    
+    // Invalida cache do React Query e recarrega lista local
+    queryClient.invalidateQueries({ queryKey: ['clients'] });
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    loadClients();
+
+    // Se houver servidor vinculado com painel configurado, dispara automação do painel
+    if (client.server) {
+      const service = services.find(s => s.server_name === client.server);
+      if ((service as Record<string, unknown>)?.panel_url) {
+        handleAutomatedPanelRenew(client, service);
+      }
     }
   };
 
@@ -397,7 +452,7 @@ export default function Clients() {
                   <TableCell><ServerBadge name={client.server} colorMap={serverColorMap} /></TableCell>
                   <TableCell>{client.plan || '-'}</TableCell>
                   <TableCell>{client.value ? `R$ ${Number(client.value).toFixed(2)}` : '-'}</TableCell>
-                  <TableCell>{client.due_date || '-'}</TableCell>
+                  <TableCell>{formatDateBR(client.due_date)}</TableCell>
                   <TableCell>
                     <Badge variant="secondary" className={CLIENT_STATUS_COLORS[getDisplayStatus(client)] || ''}>{getDisplayStatus(client)}</Badge>
                   </TableCell>
@@ -411,8 +466,25 @@ export default function Clients() {
                           <Pencil className="h-4 w-4 mr-2" />Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMarkAsPaid(client)}>
-                          <CheckCircle className="h-4 w-4 mr-2" />Marcar como pago
+                          <CheckCircle className="h-4 w-4 mr-2 text-emerald-600" />Marcar como pago (Renovar)
                         </DropdownMenuItem>
+                        {(() => {
+                          const srv = services.find(s => s.server_name === client.server);
+                          const pUrl = (srv as Record<string, unknown>)?.panel_url as string | undefined;
+                          return (
+                            <>
+                              {pUrl && (
+                                <DropdownMenuItem onClick={() => window.open(pUrl, '_blank', 'noopener,noreferrer')}>
+                                  <ExternalLink className="h-4 w-4 mr-2 text-blue-600" />Acessar Painel
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => handleAutomatedPanelRenew(client, srv)}>
+                                <RefreshCw className="h-4 w-4 mr-2 text-amber-600" />Renovar no Painel Online
+                              </DropdownMenuItem>
+                            </>
+                          );
+                        })()}
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => handleSendWhatsApp(client)}>
                           <Send className="h-4 w-4 mr-2" />Enviar WhatsApp
                         </DropdownMenuItem>

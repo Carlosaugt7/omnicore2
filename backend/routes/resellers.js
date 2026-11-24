@@ -172,7 +172,7 @@ router.post('/sync', async (req, res) => {
       // Sincronizar todos os usuários pendentes
       const { data: authUsers } = await supabase.auth.admin.listUsers();
       const regularUsers = (authUsers?.users || []).filter(
-        u => u.email && !MASTER_EMAILS.includes(u.email)
+        u => u.email && !MASTER_EMAILS.includes(u.email.toLowerCase().trim())
       );
 
       const { data: existing } = await supabase.from('resellers').select('user_id');

@@ -28,9 +28,9 @@ async function getUserSettings(userId) {
 function buildMessage(template, client, settings) {
   if (!template) return '';
 
-  const dueDate = client.due_date
-    ? new Date(client.due_date + 'T00:00:00').toLocaleDateString('pt-BR')
-    : '';
+  const dueDate = client.due_date && /^\d{4}-\d{2}-\d{2}$/.test(client.due_date)
+    ? client.due_date.split('-').reverse().join('-')
+    : (client.due_date || '');
 
   const value = client.value
     ? `R$ ${Number(client.value).toFixed(2).replace('.', ',')}`

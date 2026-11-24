@@ -20,9 +20,35 @@ export function getLocalDateStr(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-/** Formata uma string de data YYYY-MM-DD para DD/MM/AAAA */
-export function formatDate(d: string): string {
-  return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
+/** Formata uma string de data YYYY-MM-DD para DD-MM-AAAA (pt-BR) ou DD/MM/AAAA */
+export function formatDate(d: string | null | undefined, separator: '-' | '/' = '-'): string {
+  if (!d) return '-';
+  const clean = d.includes('T') ? d.split('T')[0] : d;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const [year, month, day] = clean.split('-');
+    return `${day}${separator}${month}${separator}${year}`;
+  }
+  return clean;
+}
+
+/** Formata data para o padrão pt-BR DD-MM-AAAA */
+export const formatDateBR = (d: string | null | undefined) => formatDate(d, '-');
+
+/**
+ * Calcula a próxima data de vencimento (+30 dias) de forma segura contra fuso horário.
+ * Regra (Opção A):
+ * - Se o vencimento atual for nulo ou estiver no passado (< hoje),
+ *   adiciona 30 dias a partir de HOJE.
+ * - Se o vencimento atual for no futuro (>= hoje),
+ *   adiciona 30 dias a partir da data de vencimento atual.
+ */
+export function calculateNextDueDate(currentDueDateStr: string | null | undefined): string {
+  const todayStr = getLocalDateStr(new Date());
+  const baseDateStr = (currentDueDateStr && currentDueDateStr >= todayStr) ? currentDueDateStr : todayStr;
+  const [y, m, d] = baseDateStr.split('-').map(Number);
+  const targetDate = new Date(y, m - 1, d);
+  targetDate.setDate(targetDate.getDate() + 30);
+  return getLocalDateStr(targetDate);
 }
 
 // ── Status de clientes ────────────────────────────────────────

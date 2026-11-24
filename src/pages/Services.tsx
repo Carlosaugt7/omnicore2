@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ExternalLink, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
@@ -43,6 +43,9 @@ export default function Services() {
       server_name: fd.get('server_name') as string,
       plan_name: fd.get('plan_name') as string,
       value: fd.get('value') ? parseFloat(fd.get('value') as string) : null,
+      panel_url: (fd.get('panel_url') as string) || null,
+      panel_username: (fd.get('panel_username') as string) || null,
+      panel_password: (fd.get('panel_password') as string) || null,
       user_id: user.id,
     };
 
@@ -72,12 +75,56 @@ export default function Services() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" />Novo Serviço</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>{editing ? 'Editar Serviço' : 'Novo Serviço'}</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2"><Label>Servidor *</Label><Input name="server_name" required defaultValue={editing?.server_name || ''} /></div>
-              <div className="space-y-2"><Label>Plano *</Label><Input name="plan_name" required defaultValue={editing?.plan_name || ''} /></div>
-              <div className="space-y-2"><Label>Valor</Label><Input name="value" type="number" step="0.01" defaultValue={editing?.value || ''} /></div>
+              <div className="space-y-2">
+                <Label>Servidor *</Label>
+                <Input name="server_name" placeholder="Ex: Azonix Play, Warez..." required defaultValue={editing?.server_name || ''} />
+              </div>
+              <div className="space-y-2">
+                <Label>Plano *</Label>
+                <Input name="plan_name" placeholder="Ex: 01 Tela, Mensal..." required defaultValue={editing?.plan_name || ''} />
+              </div>
+              <div className="space-y-2">
+                <Label>Valor (R$)</Label>
+                <Input name="value" type="number" step="0.01" placeholder="29.90" defaultValue={editing?.value || ''} />
+              </div>
+
+              <div className="pt-2 border-t space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Globe className="h-4 w-4 text-primary" />
+                  <span>Configuração do Painel (Opcional)</span>
+                </div>
+                <div className="space-y-2">
+                  <Label>Link do Painel (URL)</Label>
+                  <Input
+                    name="panel_url"
+                    placeholder="https://painel.exemplo.com"
+                    defaultValue={(editing as Record<string, unknown>)?.panel_url as string || ''}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Login do Painel</Label>
+                    <Input
+                      name="panel_username"
+                      placeholder="seu_usuario"
+                      defaultValue={(editing as Record<string, unknown>)?.panel_username as string || ''}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Senha do Painel</Label>
+                    <Input
+                      name="panel_password"
+                      type="password"
+                      placeholder="••••••••"
+                      defaultValue={(editing as Record<string, unknown>)?.panel_password as string || ''}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Salvando...' : 'Salvar'}</Button>
             </form>
           </DialogContent>
@@ -92,27 +139,47 @@ export default function Services() {
                 <TableHead>Servidor</TableHead>
                 <TableHead>Plano</TableHead>
                 <TableHead>Valor</TableHead>
+                <TableHead>Painel Web</TableHead>
                 <TableHead className="w-20">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {services.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell>
-                    <ServerBadge name={s.server_name} colorMap={colorMap} />
-                  </TableCell>
-                  <TableCell>{s.plan_name}</TableCell>
-                  <TableCell>{s.value ? `R$ ${Number(s.value).toFixed(2)}` : '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setEditing(s); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {services.map((s) => {
+                const pUrl = (s as Record<string, unknown>)?.panel_url as string | undefined;
+                return (
+                  <TableRow key={s.id}>
+                    <TableCell>
+                      <ServerBadge name={s.server_name} colorMap={colorMap} />
+                    </TableCell>
+                    <TableCell>{s.plan_name}</TableCell>
+                    <TableCell>{s.value ? `R$ ${Number(s.value).toFixed(2)}` : '-'}</TableCell>
+                    <TableCell>
+                      {pUrl ? (
+                        <a
+                          href={pUrl.startsWith('http') ? pUrl : `https://${pUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                          title="Clique para abrir o site do painel"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Acessar Painel
+                        </a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => { setEditing(s); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {services.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Nenhum serviço cadastrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum serviço cadastrado</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

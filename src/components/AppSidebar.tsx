@@ -37,7 +37,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
 
-  const isMaster = user?.email ? MASTER_EMAILS.includes(user.email) : false;
+  const isMaster = user?.email ? MASTER_EMAILS.includes(user.email.toLowerCase().trim()) : false;
   const filteredNav = mainNav.filter(item => !item.masterOnly || isMaster);
   const initials = user?.email?.slice(0, 2).toUpperCase() || "U";
 

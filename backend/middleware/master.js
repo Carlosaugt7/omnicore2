@@ -21,7 +21,7 @@ async function requireMaster(req, res, next) {
       return res.status(401).json({ error: 'Token inválido ou expirado.' });
     }
 
-    if (!MASTER_EMAILS.includes(user.email)) {
+    if (!MASTER_EMAILS.includes((user.email || '').toLowerCase().trim())) {
       logger.warn({ email: user.email }, 'master middleware: acesso negado');
       return res.status(403).json({ error: 'Acesso restrito ao painel master.' });
     }

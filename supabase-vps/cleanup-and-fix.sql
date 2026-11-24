@@ -32,16 +32,15 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 -- Vamos garantir que as políticas de compartilhamento (Carlos/Andressa) estejam ativas
 DO $$ 
 BEGIN
-    -- Se a função de compartilhamento não existir, criamos
-    IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'check_shared_access') THEN
-        CREATE FUNCTION public.check_shared_access(uid uuid, row_owner uuid)
-        RETURNS boolean AS '
-        BEGIN
-          RETURN uid = row_owner OR 
-                 (uid = ''d267b748-8f3b-4684-85e9-589dc9a79a93'' AND row_owner = ''d9919cb5-c4a4-43c3-8614-878495d18c37'');
-        END;
-        ' LANGUAGE plpgsql SECURITY DEFINER;
-    END IF;
+    -- Cria/atualiza a função de compartilhamento bidirecional
+    CREATE OR REPLACE FUNCTION public.check_shared_access(uid uuid, row_owner uuid)
+    RETURNS boolean AS '
+    BEGIN
+      RETURN uid = row_owner OR 
+             (uid IN (''d267b748-8f3b-4684-85e9-589dc9a79a93'', ''d9919cb5-c4a4-43c3-8614-878495d18c37'') 
+              AND row_owner IN (''d267b748-8f3b-4684-85e9-589dc9a79a93'', ''d9919cb5-c4a4-43c3-8614-878495d18c37''));
+    END;
+    ' LANGUAGE plpgsql SECURITY DEFINER;
 END $$;
 
 -- Atualizar/Recriar políticas para as tabelas principais

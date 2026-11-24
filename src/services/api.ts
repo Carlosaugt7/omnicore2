@@ -101,4 +101,18 @@ export const api = {
     });
     return res.json();
   },
+
+  // ── Painéis Automatizados ──────────────────────────────────
+
+  async panelRenew(payload: {
+    userId: string;
+    clientId: string;
+    serverName?: string;
+  }) {
+    const res = await backendFetch('/api/panels/renew', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
 };

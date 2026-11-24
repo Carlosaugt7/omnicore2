@@ -12,7 +12,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
 import DataTransfer from '@/components/DataTransfer';
-import { formatBRL, CLIENT_STATUS_COLORS } from '@/lib/utils';
+import { formatBRL, CLIENT_STATUS_COLORS, formatDateBR, getDisplayStatus } from '@/lib/utils';
 import { useClients } from '@/hooks/useClients';
 import { useTransactions } from '@/hooks/useTransactions';
 
@@ -285,9 +285,9 @@ export default function Dashboard() {
                   <TableCell><ServerBadge name={c.server} colorMap={serverColorMap} /></TableCell>
                   <TableCell>{c.plan || '-'}</TableCell>
                   <TableCell>{c.value ? formatBRL(c.value) : '-'}</TableCell>
-                  <TableCell>{c.due_date}</TableCell>
+                  <TableCell>{formatDateBR(c.due_date)}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={CLIENT_STATUS_COLORS[c.status] || ''}>{c.status}</Badge>
+                    <Badge variant="secondary" className={CLIENT_STATUS_COLORS[getDisplayStatus(c)] || ''}>{getDisplayStatus(c)}</Badge>
                   </TableCell>
                   <TableCell>
                     <Button

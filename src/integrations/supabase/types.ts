@@ -198,6 +198,9 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          panel_password: string | null
+          panel_url: string | null
+          panel_username: string | null
           plan_name: string
           server_name: string
           user_id: string
@@ -206,6 +209,9 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          panel_password?: string | null
+          panel_url?: string | null
+          panel_username?: string | null
           plan_name: string
           server_name: string
           user_id: string
@@ -214,6 +220,9 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          panel_password?: string | null
+          panel_url?: string | null
+          panel_username?: string | null
           plan_name?: string
           server_name?: string
           user_id?: string

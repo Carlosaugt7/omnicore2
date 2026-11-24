@@ -1,13 +1,20 @@
 -- Script SQL para ser rodado no Supabase para permitir o compartilhamento
 
+-- 0. Adicionar suporte a campos de painel na tabela services
+ALTER TABLE public.services 
+  ADD COLUMN IF NOT EXISTS panel_url TEXT,
+  ADD COLUMN IF NOT EXISTS panel_username TEXT,
+  ADD COLUMN IF NOT EXISTS panel_password TEXT;
+
 -- 1. Função auxiliar de segurança para checar o compartilhamento
 CREATE OR REPLACE FUNCTION public.check_shared_access(uid uuid, row_owner uuid)
 RETURNS boolean AS $$
 BEGIN
   -- Se você for o dono, passa.
-  -- Se você for a Andressa e o dono for o Carlos, passa.
+  -- Se ambos forem Carlos e Andressa, passa bidirecionalmente.
   RETURN uid = row_owner OR 
-         (uid = 'd267b748-8f3b-4684-85e9-589dc9a79a93' AND row_owner = 'd9919cb5-c4a4-43c3-8614-878495d18c37');
+         (uid IN ('d267b748-8f3b-4684-85e9-589dc9a79a93', 'd9919cb5-c4a4-43c3-8614-878495d18c37') 
+          AND row_owner IN ('d267b748-8f3b-4684-85e9-589dc9a79a93', 'd9919cb5-c4a4-43c3-8614-878495d18c37'));
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
