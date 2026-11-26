@@ -7,6 +7,7 @@ const breadcrumbMap: Record<string, string> = {
   dashboard: "Dashboard",
   clients: "Clientes",
   services: "Serviços",
+  plans: "Planos",
   financial: "Financeiro",
   reminders: "Lembretes",
   reports: "Relatórios",

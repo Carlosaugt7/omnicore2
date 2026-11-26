@@ -133,4 +133,55 @@ export const api = {
     });
     return res.json();
   },
+
+  // ── Backup Google Drive ───────────────────────────────────
+
+  async backupStatus(userId: string) {
+    const res = await backendFetch(`/api/backup/status?userId=${encodeURIComponent(userId)}`);
+    return res.json();
+  },
+
+  async backupSaveSettings(payload: {
+    userId: string;
+    enabled: boolean;
+    frequency: string;
+    send_time: string;
+    timezone: string;
+    retention_count: number;
+    google_client_id?: string;
+    google_client_secret?: string;
+  }) {
+    const res = await backendFetch('/api/backup/settings', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
+  async backupGoogleAuthUrl(userId: string) {
+    const res = await backendFetch(`/api/backup/google/auth-url?userId=${encodeURIComponent(userId)}`);
+    return res.json();
+  },
+
+  async backupGoogleDisconnect(userId: string) {
+    const res = await backendFetch('/api/backup/google/disconnect', {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
+    return res.json();
+  },
+
+  async backupRunNow(userId: string) {
+    const res = await backendFetch('/api/backup/run-now', {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
+    return res.json();
+  },
+
+  async backupDownload(userId: string) {
+    const res = await backendFetch(`/api/backup/download?userId=${encodeURIComponent(userId)}`);
+    if (!res.ok) throw new Error('Erro ao gerar download do backup.');
+    return res.blob();
+  },
 };

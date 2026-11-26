@@ -14,6 +14,7 @@ const schedulerRoutes = require('./routes/scheduler');
 const resellerRoutes = require('./routes/resellers');
 const panelRoutes = require('./routes/panels');
 const reportRoutes = require('./routes/reports');
+const backupRoutes = require('./routes/backup');
 
 // ─────────────────────────────────────────────────────────────
 // Validate required environment variables
@@ -42,6 +43,7 @@ const ALLOWED_ORIGINS = [
 // Express app setup
 // ─────────────────────────────────────────────────────────────
 const app = express();
+app.set('trust proxy', 1);
 
 // ── Security headers (Helmet) ─────────────────────────────────
 app.use(helmet());
@@ -129,6 +131,7 @@ app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/resellers', resellerRoutes);
 app.use('/api/panels', panelRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/backup', backupRoutes);
 
 // ─────────────────────────────────────────────────────────────
 // 404 handler
@@ -152,6 +155,7 @@ app.use((err, _req, res, _next) => {
 const { supabase } = require('./lib/supabase');
 const { runJobForUser, runWithConcurrency } = require('./services/schedulerService');
 const { processScheduledReports } = require('./services/reportService');
+const { processScheduledBackups } = require('./services/backupService');
 
 /**
  * Returns the current HH:MM in a given IANA timezone.
@@ -191,6 +195,13 @@ function initScheduler() {
       await processScheduledReports();
     } catch (err) {
       logger.error({ err: err.message }, 'cron: error processing scheduled reports');
+    }
+
+    // 1b. Verifica backups automáticos agendados (Google Drive)
+    try {
+      await processScheduledBackups();
+    } catch (err) {
+      logger.error({ err: err.message }, 'cron: error processing scheduled backups');
     }
 
     // 2. Fetch all connected users with their timezone setting

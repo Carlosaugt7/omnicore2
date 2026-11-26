@@ -14,6 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
+      backup_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          file_name: string | null
+          file_size_bytes: number | null
+          gdrive_file_id: string | null
+          id: string
+          status: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          gdrive_file_id?: string | null
+          id?: string
+          status: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          gdrive_file_id?: string | null
+          id?: string
+          status?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      backup_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          frequency: string
+          gdrive_folder_id: string | null
+          google_client_id: string | null
+          google_client_secret: string | null
+          google_email: string | null
+          google_refresh_token: string | null
+          id: string
+          last_backup_at: string | null
+          last_backup_date: string | null
+          last_backup_error: string | null
+          last_backup_status: string | null
+          retention_count: number
+          send_time: string
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          frequency?: string
+          gdrive_folder_id?: string | null
+          google_client_id?: string | null
+          google_client_secret?: string | null
+          google_email?: string | null
+          google_refresh_token?: string | null
+          id?: string
+          last_backup_at?: string | null
+          last_backup_date?: string | null
+          last_backup_error?: string | null
+          last_backup_status?: string | null
+          retention_count?: number
+          send_time?: string
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          frequency?: string
+          gdrive_folder_id?: string | null
+          google_client_id?: string | null
+          google_client_secret?: string | null
+          google_email?: string | null
+          google_refresh_token?: string | null
+          id?: string
+          last_backup_at?: string | null
+          last_backup_date?: string | null
+          last_backup_error?: string | null
+          last_backup_status?: string | null
+          retention_count?: number
+          send_time?: string
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           created_at: string
@@ -194,6 +293,33 @@ export type Database = {
           },
         ]
       }
+      plans: {
+        Row: {
+          created_at: string
+          duration_days: number
+          id: string
+          name: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          duration_days?: number
+          id?: string
+          name: string
+          user_id: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          duration_days?: number
+          id?: string
+          name?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: []
+      }
       report_settings: {
         Row: {
           created_at: string
@@ -270,7 +396,7 @@ export type Database = {
           panel_password: string | null
           panel_url: string | null
           panel_username: string | null
-          plan_name: string
+          plan_name: string | null
           server_name: string
           user_id: string
           value: number | null
@@ -281,7 +407,7 @@ export type Database = {
           panel_password?: string | null
           panel_url?: string | null
           panel_username?: string | null
-          plan_name: string
+          plan_name?: string | null
           server_name: string
           user_id: string
           value?: number | null
@@ -292,7 +418,7 @@ export type Database = {
           panel_password?: string | null
           panel_url?: string | null
           panel_username?: string | null
-          plan_name?: string
+          plan_name?: string | null
           server_name?: string
           user_id?: string
           value?: number | null

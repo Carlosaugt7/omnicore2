@@ -54,8 +54,8 @@ export default function Services() {
 
     const payload = {
       server_name: fd.get('server_name') as string,
-      plan_name: fd.get('plan_name') as string,
-      value: fd.get('value') ? parseFloat(fd.get('value') as string) : null,
+      plan_name: editing?.plan_name || null,
+      value: editing?.value ?? null,
       panel_url: (fd.get('panel_url') as string) || null,
       panel_username: (fd.get('panel_username') as string) || null,
       panel_password: rawPassword,
@@ -92,16 +92,8 @@ export default function Services() {
             <DialogHeader><DialogTitle>{editing ? 'Editar Serviço' : 'Novo Serviço'}</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>Servidor *</Label>
+                <Label>Servidor / Serviço *</Label>
                 <Input name="server_name" placeholder="Ex: Azonix Play, Warez..." required defaultValue={editing?.server_name || ''} />
-              </div>
-              <div className="space-y-2">
-                <Label>Plano *</Label>
-                <Input name="plan_name" placeholder="Ex: 01 Tela, Mensal..." required defaultValue={editing?.plan_name || ''} />
-              </div>
-              <div className="space-y-2">
-                <Label>Valor (R$)</Label>
-                <Input name="value" type="number" step="0.01" placeholder="29.90" defaultValue={editing?.value || ''} />
               </div>
 
               <div className="pt-2 border-t space-y-3">
@@ -149,9 +141,7 @@ export default function Services() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Servidor</TableHead>
-                <TableHead>Plano</TableHead>
-                <TableHead>Valor</TableHead>
+                <TableHead>Servidor / Serviço</TableHead>
                 <TableHead>Painel Web</TableHead>
                 <TableHead className="w-20">Ações</TableHead>
               </TableRow>
@@ -164,8 +154,6 @@ export default function Services() {
                     <TableCell>
                       <ServerBadge name={s.server_name} colorMap={colorMap} />
                     </TableCell>
-                    <TableCell>{s.plan_name}</TableCell>
-                    <TableCell>{s.value ? `R$ ${Number(s.value).toFixed(2)}` : '-'}</TableCell>
                     <TableCell>
                       {pUrl ? (
                         <a
@@ -192,7 +180,7 @@ export default function Services() {
                 );
               })}
               {services.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum serviço cadastrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">Nenhum serviço cadastrado</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

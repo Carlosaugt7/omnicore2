@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
@@ -13,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Play, Save } from 'lucide-react';
 import EvolutionSetupWizard from '@/components/EvolutionSetupWizard';
+import BackupSettingsTab from '@/components/BackupSettingsTab';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 import { replaceMessageVars, LOG_STATUS_COLORS } from '@/lib/utils';
@@ -103,7 +105,24 @@ const INITIAL_SETTINGS: Settings = {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'evolution';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [settings, setSettings] = useState<Settings>(INITIAL_SETTINGS);
+
+  useEffect(() => {
+    const gdrive = searchParams.get('gdrive');
+    if (gdrive === 'connected') {
+      toast.success('Google Drive conectado com sucesso!');
+      setActiveTab('backup');
+      setSearchParams({ tab: 'backup' }, { replace: true });
+    } else if (gdrive === 'error') {
+      const msg = searchParams.get('msg') || 'Erro desconhecido';
+      toast.error(`Falha ao conectar Google Drive: ${msg}`);
+      setActiveTab('backup');
+      setSearchParams({ tab: 'backup' }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [loading, setLoading] = useState(false);
   const [triggeringManual, setTriggeringManual] = useState(false);
   const [recentLogs, setRecentLogs] = useState<ReminderLog[]>([]);
@@ -248,12 +267,13 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="evolution">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="evolution">Evolution API</TabsTrigger>
           <TabsTrigger value="pix">PIX</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="schedule">Agendamento</TabsTrigger>
+          <TabsTrigger value="backup">Backup</TabsTrigger>
         </TabsList>
 
         {/* TAB 1: Evolution API */}
@@ -477,6 +497,11 @@ export default function SettingsPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* TAB 5: Backup Google Drive */}
+        <TabsContent value="backup">
+          <BackupSettingsTab />
         </TabsContent>
       </Tabs>
     </div>

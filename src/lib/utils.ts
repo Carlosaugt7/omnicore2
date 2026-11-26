@@ -42,12 +42,12 @@ export const formatDateBR = (d: string | null | undefined) => formatDate(d, '-')
  * - Se o vencimento atual for no futuro (>= hoje),
  *   adiciona 30 dias a partir da data de vencimento atual.
  */
-export function calculateNextDueDate(currentDueDateStr: string | null | undefined): string {
+export function calculateNextDueDate(currentDueDateStr: string | null | undefined, days = 30): string {
   const todayStr = getLocalDateStr(new Date());
   const baseDateStr = (currentDueDateStr && currentDueDateStr >= todayStr) ? currentDueDateStr : todayStr;
   const [y, m, d] = baseDateStr.split('-').map(Number);
   const targetDate = new Date(y, m - 1, d);
-  targetDate.setDate(targetDate.getDate() + 30);
+  targetDate.setDate(targetDate.getDate() + days);
   return getLocalDateStr(targetDate);
 }
 

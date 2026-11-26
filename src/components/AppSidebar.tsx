@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, Server, DollarSign, Bell,
-  MonitorSmartphone, Settings, LogOut, Zap, Gift, Megaphone, Store, FileBarChart,
+  MonitorSmartphone, Settings, LogOut, Zap, Gift, Megaphone, Store, FileBarChart, Layers,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -19,6 +19,7 @@ const mainNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Clientes", url: "/dashboard/clients", icon: Users },
   { title: "Serviços", url: "/dashboard/services", icon: Server },
+  { title: "Planos", url: "/dashboard/plans", icon: Layers },
   { title: "Financeiro", url: "/dashboard/financial", icon: DollarSign },
   { title: "Lembretes", url: "/dashboard/reminders", icon: Bell },
   { title: "Relatórios", url: "/dashboard/reports", icon: FileBarChart },

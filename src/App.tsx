@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Clients = lazy(() => import("./pages/Clients"));
 const Services = lazy(() => import("./pages/Services"));
+const Plans = lazy(() => import("./pages/Plans"));
 const Financial = lazy(() => import("./pages/Financial"));
 const Reminders = lazy(() => import("./pages/Reminders"));
 const Reports = lazy(() => import("./pages/Reports"));
@@ -50,6 +51,7 @@ const App = () => (
               <Route index element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Dashboard /></Suspense>} />
               <Route path="clients" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Clients /></Suspense>} />
               <Route path="services" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Services /></Suspense>} />
+              <Route path="plans" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Plans /></Suspense>} />
               <Route path="financial" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Financial /></Suspense>} />
               <Route path="reminders" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Reminders /></Suspense>} />
               <Route path="reports" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Reports /></Suspense>} />

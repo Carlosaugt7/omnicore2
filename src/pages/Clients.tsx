@@ -21,6 +21,7 @@ import { getDisplayStatus, CLIENT_STATUS_COLORS, formatDateBR, calculateNextDueD
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Service = Database['public']['Tables']['services']['Row'];
+type Plan = Database['public']['Tables']['plans']['Row'];
 
 type SortKey = 'name' | 'due_date' | 'value';
 type SortDir = 'asc' | 'desc';
@@ -30,6 +31,7 @@ export default function Clients() {
   const queryClient = useQueryClient();
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [serverFilter, setServerFilter] = useState('all');
@@ -75,9 +77,16 @@ export default function Clients() {
     if (data) setServices(data);
   };
 
+  const loadPlans = async () => {
+    if (!user) return;
+    const { data } = await supabase.from('plans').select('*').eq('user_id', user.id).order('name');
+    if (data) setPlans(data);
+  };
+
   useEffect(() => {
     loadClients();
     loadServices();
+    loadPlans();
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Unique server names from services catalog
@@ -85,24 +94,43 @@ export default function Clients() {
     return Array.from(new Set(services.map(s => s.server_name))).sort();
   }, [services]);
 
-  // Plans available for the selected server
-  const plansForServer = useMemo(() => {
-    if (!formServer) return [];
-    return services.filter(s => s.server_name === formServer);
-  }, [services, formServer]);
+  // Planos independentes (tabela plans + fallback para legados em services)
+  const availablePlans = useMemo(() => {
+    if (plans.length > 0) {
+      const hasLegacyEditing =
+        editingClient?.plan && !plans.some(p => p.name === editingClient.plan);
+      if (hasLegacyEditing && editingClient?.plan) {
+        return [
+          ...plans,
+          { id: 'legacy', name: editingClient.plan, value: editingClient.value || 0, duration_days: 30 } as Plan,
+        ];
+      }
+      return plans;
+    }
+    // Fallback caso a tabela plans ainda não tenha sido populada
+    const seen = new Set<string>();
+    const legacy: Plan[] = [];
+    for (const s of services) {
+      if (s.plan_name && !seen.has(s.plan_name)) {
+        seen.add(s.plan_name);
+        legacy.push({ id: s.id, name: s.plan_name, value: s.value || 0, duration_days: 30 } as Plan);
+      }
+    }
+    return legacy;
+  }, [plans, services, editingClient]);
 
-  // When server changes: reset plan and value
+  // Ao trocar servidor, mantém o plano e valor selecionados
   const handleServerChange = (value: string) => {
     setFormServer(value);
-    setFormPlan('');
-    setFormValue('');
   };
 
-  // When plan changes: auto-fill value
+  // Ao trocar plano, preenche o valor automaticamente
   const handlePlanChange = (value: string) => {
     setFormPlan(value);
-    const service = services.find(s => s.server_name === formServer && s.plan_name === value);
-    setFormValue(service?.value != null ? String(service.value) : '');
+    const plan = availablePlans.find(p => p.name === value);
+    if (plan) {
+      setFormValue(String(plan.value));
+    }
   };
 
   // Reset form fields when dialog opens/closes
@@ -241,9 +269,11 @@ export default function Clients() {
     if (!user) return;
 
     // Regra (Opção A):
-    // Se vencido (< hoje), soma 30 dias a partir de hoje.
-    // Se não vencido (>= hoje), soma 30 dias ao vencimento atual.
-    const newDueDate = calculateNextDueDate(client.due_date);
+    // Se vencido (< hoje), soma a duração do plano (padrão 30 dias) a partir de hoje.
+    // Se não vencido (>= hoje), soma a duração do plano ao vencimento atual.
+    const matchedPlan = plans.find(p => p.name === client.plan);
+    const durationDays = matchedPlan?.duration_days || 30;
+    const newDueDate = calculateNextDueDate(client.due_date, durationDays);
     const currentDue = client.due_date || newDueDate;
 
     // Regra (Opção A) para transações:
@@ -378,16 +408,18 @@ export default function Clients() {
                   </Select>
                 </div>
 
-                {/* Plano — filtrado pelo servidor selecionado */}
+                {/* Plano — lista independente de planos */}
                 <div className="space-y-2">
                   <Label>Plano</Label>
-                  <Select value={formPlan} onValueChange={handlePlanChange} disabled={!formServer}>
+                  <Select value={formPlan} onValueChange={handlePlanChange}>
                     <SelectTrigger>
-                      <SelectValue placeholder={formServer ? 'Selecione...' : 'Escolha o servidor'} />
+                      <SelectValue placeholder="Selecione o plano..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {plansForServer.map(s => (
-                        <SelectItem key={s.id} value={s.plan_name}>{s.plan_name}</SelectItem>
+                      {availablePlans.map(p => (
+                        <SelectItem key={p.id} value={p.name}>
+                          {p.name} — R$ {Number(p.value || 0).toFixed(2)}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
