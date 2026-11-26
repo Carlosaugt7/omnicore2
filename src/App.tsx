@@ -15,6 +15,7 @@ const Clients = lazy(() => import("./pages/Clients"));
 const Services = lazy(() => import("./pages/Services"));
 const Financial = lazy(() => import("./pages/Financial"));
 const Reminders = lazy(() => import("./pages/Reminders"));
+const Reports = lazy(() => import("./pages/Reports"));
 const Broadcast = lazy(() => import("./pages/Broadcast"));
 const MacAddresses = lazy(() => import("./pages/MacAddresses"));
 const Referrals = lazy(() => import("./pages/Referrals"));
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="services" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Services /></Suspense>} />
               <Route path="financial" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Financial /></Suspense>} />
               <Route path="reminders" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Reminders /></Suspense>} />
+              <Route path="reports" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Reports /></Suspense>} />
               <Route path="broadcast" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Broadcast /></Suspense>} />
               <Route path="mac-addresses" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><MacAddresses /></Suspense>} />
               <Route path="referrals" element={<Suspense fallback={<div className="p-8 text-center text-muted-foreground">Carregando...</div>}><Referrals /></Suspense>} />

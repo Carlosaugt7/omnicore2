@@ -48,8 +48,25 @@ export default function Clients() {
 
   const loadClients = async () => {
     if (!user) return;
-    const { data } = await supabase.from('clients').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-    if (data) setClients(data);
+    const all: Client[] = [];
+    const pageSize = 1000;
+    let from = 0;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (error || !data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    setClients(all);
   };
 
   const loadServices = async () => {
@@ -290,6 +307,7 @@ export default function Clients() {
     // Invalida cache do React Query e recarrega lista local
     queryClient.invalidateQueries({ queryKey: ['clients'] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['omnicore_metrics'] });
     loadClients();
 
     // Se houver servidor vinculado com painel configurado, dispara automação do painel

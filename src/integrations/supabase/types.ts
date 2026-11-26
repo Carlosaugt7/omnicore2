@@ -194,6 +194,75 @@ export type Database = {
           },
         ]
       }
+      report_settings: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          enabled: boolean
+          id: string
+          include_active_clients: boolean
+          include_clients_overdue: boolean
+          include_fin_expenses: boolean
+          include_fin_overdue: boolean
+          include_fin_to_receive: boolean
+          include_next_revenue: boolean
+          include_renewal_rate: boolean
+          include_revenue_month: boolean
+          include_to_renew: boolean
+          last_sent_date: string | null
+          phone_1: string | null
+          phone_2: string | null
+          send_time: string
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week?: number
+          enabled?: boolean
+          id?: string
+          include_active_clients?: boolean
+          include_clients_overdue?: boolean
+          include_fin_expenses?: boolean
+          include_fin_overdue?: boolean
+          include_fin_to_receive?: boolean
+          include_next_revenue?: boolean
+          include_renewal_rate?: boolean
+          include_revenue_month?: boolean
+          include_to_renew?: boolean
+          last_sent_date?: string | null
+          phone_1?: string | null
+          phone_2?: string | null
+          send_time?: string
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          enabled?: boolean
+          id?: string
+          include_active_clients?: boolean
+          include_clients_overdue?: boolean
+          include_fin_expenses?: boolean
+          include_fin_overdue?: boolean
+          include_fin_to_receive?: boolean
+          include_next_revenue?: boolean
+          include_renewal_rate?: boolean
+          include_revenue_month?: boolean
+          include_to_renew?: boolean
+          last_sent_date?: string | null
+          phone_1?: string | null
+          phone_2?: string | null
+          send_time?: string
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       services: {
         Row: {
           created_at: string

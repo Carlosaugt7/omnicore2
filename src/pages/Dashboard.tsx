@@ -15,6 +15,7 @@ import DataTransfer from '@/components/DataTransfer';
 import { formatBRL, CLIENT_STATUS_COLORS, formatDateBR, getDisplayStatus } from '@/lib/utils';
 import { useClients } from '@/hooks/useClients';
 import { useTransactions } from '@/hooks/useTransactions';
+import { useMetrics } from '@/hooks/useMetrics';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Transaction = Database['public']['Tables']['transactions']['Row'];
@@ -29,6 +30,7 @@ export default function Dashboard() {
 
   const { data: clients = [], isLoading: loadingClients } = useClients(user?.id);
   const { data: transactions = [], isLoading: loadingTxs } = useTransactions(user?.id);
+  const { data: rpcMetrics } = useMetrics(user?.id);
 
   const loading = loadingClients || loadingTxs;
 
@@ -36,19 +38,48 @@ export default function Dashboard() {
   const todayStr = today.toISOString().split('T')[0];
 
   const metrics = useMemo(() => {
+    if (rpcMetrics) {
+      const revenueChange = rpcMetrics.revenuePrevMonth > 0
+        ? ((rpcMetrics.revenueThisMonth - rpcMetrics.revenuePrevMonth) / rpcMetrics.revenuePrevMonth) * 100
+        : rpcMetrics.revenueThisMonth > 0 ? 100 : 0;
+      return {
+        revenueThisMonth: rpcMetrics.revenueThisMonth,
+        revenueChange,
+        toRenewCount: rpcMetrics.toRenewCount,
+        toRenewValue: rpcMetrics.toRenewValue,
+        overdueCount: rpcMetrics.overdueCount,
+        overdueValue: rpcMetrics.overdueValue,
+        renewalRate: rpcMetrics.renewalRate,
+        activeCount: rpcMetrics.activeCount,
+        nextRevenue: rpcMetrics.nextRevenue,
+      };
+    }
+
     const now = new Date();
     const monthStart = startOfMonth(now);
     const prevMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
-    // 1. Receita do Mês (paid transactions this month using paid_at)
-    const revenueThisMonth = transactions
-      .filter(t => t.status === 'pago' && t.paid_at && new Date(t.paid_at) >= monthStart)
+    // 1. Receita do Mês (entradas/renovações pagas menos despesas pagas no mês)
+    const grossThisMonth = transactions
+      .filter(t => t.status === 'pago' && t.type !== 'saida' && t.paid_at && new Date(t.paid_at) >= monthStart)
       .reduce((sum, t) => sum + (t.value || 0), 0);
 
-    const revenuePrevMonth = transactions
-      .filter(t => t.status === 'pago' && t.paid_at && new Date(t.paid_at) >= prevMonthStart && new Date(t.paid_at) <= prevMonthEnd)
+    const expensesThisMonth = transactions
+      .filter(t => t.status === 'pago' && t.type === 'saida' && t.paid_at && new Date(t.paid_at) >= monthStart)
       .reduce((sum, t) => sum + (t.value || 0), 0);
+
+    const revenueThisMonth = grossThisMonth - expensesThisMonth;
+
+    const grossPrevMonth = transactions
+      .filter(t => t.status === 'pago' && t.type !== 'saida' && t.paid_at && new Date(t.paid_at) >= prevMonthStart && new Date(t.paid_at) <= prevMonthEnd)
+      .reduce((sum, t) => sum + (t.value || 0), 0);
+
+    const expensesPrevMonth = transactions
+      .filter(t => t.status === 'pago' && t.type === 'saida' && t.paid_at && new Date(t.paid_at) >= prevMonthStart && new Date(t.paid_at) <= prevMonthEnd)
+      .reduce((sum, t) => sum + (t.value || 0), 0);
+
+    const revenuePrevMonth = grossPrevMonth - expensesPrevMonth;
 
     const revenueChange = revenuePrevMonth > 0
       ? ((revenueThisMonth - revenuePrevMonth) / revenuePrevMonth) * 100
@@ -94,7 +125,7 @@ export default function Dashboard() {
       .reduce((sum, c) => sum + (c.value || 0), 0);
 
     return { revenueThisMonth, revenueChange, toRenewCount, toRenewValue, overdueCount, overdueValue, renewalRate, activeCount, nextRevenue };
-  }, [clients, transactions, todayStr]);
+  }, [clients, transactions, todayStr, rpcMetrics]);
 
   // Vencimentos desta semana
   const weekDues = useMemo(() => {

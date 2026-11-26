@@ -13,6 +13,7 @@ const webhookRoutes = require('./routes/webhooks');
 const schedulerRoutes = require('./routes/scheduler');
 const resellerRoutes = require('./routes/resellers');
 const panelRoutes = require('./routes/panels');
+const reportRoutes = require('./routes/reports');
 
 // ─────────────────────────────────────────────────────────────
 // Validate required environment variables
@@ -127,6 +128,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/resellers', resellerRoutes);
 app.use('/api/panels', panelRoutes);
+app.use('/api/reports', reportRoutes);
 
 // ─────────────────────────────────────────────────────────────
 // 404 handler
@@ -148,7 +150,8 @@ app.use((err, _req, res, _next) => {
 // reminder_time against their saved reminder_timezone
 // ─────────────────────────────────────────────────────────────
 const { supabase } = require('./lib/supabase');
-const { runJobForUser } = require('./services/schedulerService');
+const { runJobForUser, runWithConcurrency } = require('./services/schedulerService');
+const { processScheduledReports } = require('./services/reportService');
 
 /**
  * Returns the current HH:MM in a given IANA timezone.
@@ -183,8 +186,14 @@ function currentTimeInTZ(tz) {
 function initScheduler() {
   // Runs every minute — each user has their own timezone + reminder_time
   cron.schedule('* * * * *', async () => {
+    // 1. Verifica relatórios semanais agendados
+    try {
+      await processScheduledReports();
+    } catch (err) {
+      logger.error({ err: err.message }, 'cron: error processing scheduled reports');
+    }
 
-    // Fetch all connected users with their timezone setting
+    // 2. Fetch all connected users with their timezone setting
     const { data: usersToCheck, error } = await supabase
       .from('settings')
       .select('user_id, reminder_time, reminder_timezone')
@@ -209,14 +218,14 @@ function initScheduler() {
 
     logger.info({ count: toRun.length }, 'cron: triggering users');
 
-    for (const row of toRun) {
+    await runWithConcurrency(toRun, 5, async (row) => {
       try {
         const summary = await runJobForUser(row.user_id);
         logger.info({ userId: row.user_id, timezone: row.reminder_timezone, time: row.reminder_time, summary }, 'cron: job completed');
       } catch (err) {
         logger.error({ userId: row.user_id, err }, 'cron: user job failed');
       }
-    }
+    });
   });
 
   logger.info('scheduler: cron registered (checks every minute per user timezone)');

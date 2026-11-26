@@ -115,4 +115,22 @@ export const api = {
     });
     return res.json();
   },
+
+  async encryptPanelPassword(password: string) {
+    const res = await backendFetch('/api/panels/encrypt-password', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+    return res.json();
+  },
+
+  // ── Relatórios Semanais ───────────────────────────────────
+
+  async reportsSendNow(userId: string) {
+    const res = await backendFetch('/api/reports/send-now', {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
+    return res.json();
+  },
 };

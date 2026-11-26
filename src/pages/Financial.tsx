@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import type { Database } from '@/integrations/supabase/types';
 import { formatBRL, TRANSACTION_STATUS_COLORS, TRANSACTION_TYPE_LABELS, formatDateBR } from '@/lib/utils';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useClients } from '@/hooks/useClients';
+import { useMetrics } from '@/hooks/useMetrics';
 
 type Transaction = Database['public']['Tables']['transactions']['Row'];
 type Client = Database['public']['Tables']['clients']['Row'];
@@ -30,6 +32,7 @@ interface DuplicateGroup {
 
 export default function Financial() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [clients, setClients] = useState<Client[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -56,6 +59,12 @@ export default function Financial() {
 
   const today = new Date().toISOString().split('T')[0];
   const monthStart = monthFilter + '-01';
+  const { data: rpcMetrics } = useMetrics(user?.id, today, monthStart);
+
+  const load = () => {
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['omnicore_metrics'] });
+  };
   const nextMonth = (() => {
     const [y, m] = monthFilter.split('-').map(Number);
     const d = new Date(y, m, 1);
@@ -63,6 +72,15 @@ export default function Financial() {
   })();
 
   const metrics = useMemo(() => {
+    if (rpcMetrics) {
+      return {
+        toReceive: rpcMetrics.finToReceive,
+        paidThisMonth: rpcMetrics.revenueThisMonth,
+        overdueAmount: rpcMetrics.finOverdue,
+        expenses: rpcMetrics.finExpenses,
+      };
+    }
+
     const in5days = new Date();
     in5days.setDate(in5days.getDate() + 5);
     const in5Str = in5days.toISOString().split('T')[0];
@@ -71,12 +89,18 @@ export default function Financial() {
       .filter(c => c.status === 'ativo' && c.due_date && c.due_date >= today && c.due_date <= in5Str)
       .reduce((sum, c) => sum + (c.value || 0), 0);
 
-    const paidThisMonth = transactions
-      .filter(t => t.status === 'pago' && t.paid_at && t.paid_at >= monthStart && t.paid_at < nextMonth)
+    const grossPaidThisMonth = transactions
+      .filter(t => t.status === 'pago' && t.type !== 'saida' && t.paid_at && t.paid_at >= monthStart && t.paid_at < nextMonth)
       .reduce((sum, t) => sum + (t.value || 0), 0);
 
+    const paidExpensesThisMonth = transactions
+      .filter(t => t.status === 'pago' && t.type === 'saida' && t.paid_at && t.paid_at >= monthStart && t.paid_at < nextMonth)
+      .reduce((sum, t) => sum + (t.value || 0), 0);
+
+    const paidThisMonth = grossPaidThisMonth - paidExpensesThisMonth;
+
     const overdueAmount = clients
-      .filter(c => c.status === 'vencido' && c.due_date && c.due_date < today)
+      .filter(c => c.status !== 'cancelado' && c.due_date && c.due_date < today)
       .reduce((sum, c) => sum + (c.value || 0), 0);
 
     const expenses = transactions
@@ -84,7 +108,7 @@ export default function Financial() {
       .reduce((sum, t) => sum + (t.value || 0), 0);
 
     return { toReceive, paidThisMonth, overdueAmount, expenses };
-  }, [clients, transactions, today, monthStart, nextMonth]);
+  }, [clients, transactions, today, monthStart, nextMonth, rpcMetrics]);
 
   const filtered = useMemo(() => {
     return transactions.filter(t => {

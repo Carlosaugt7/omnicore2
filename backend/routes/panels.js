@@ -2,7 +2,27 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const { renewClientInPanel } = require('../services/panelService');
+const { encryptSecret } = require('../lib/crypto');
 const { logger } = require('../lib/logger');
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/panels/encrypt-password
+// Criptografa a senha do painel com AES-256-GCM antes de salvar no banco
+// Body: { password }
+// ─────────────────────────────────────────────────────────────
+router.post('/encrypt-password', requireAuth, (req, res) => {
+  const { password } = req.body || {};
+  if (!password) {
+    return res.json({ success: true, encrypted: null });
+  }
+  try {
+    const encrypted = encryptSecret(password);
+    return res.json({ success: true, encrypted });
+  } catch (err) {
+    logger.error({ err: err.message }, 'panels/encrypt-password: erro');
+    return res.status(500).json({ success: false, error: 'Erro ao criptografar senha.' });
+  }
+});
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/panels/renew

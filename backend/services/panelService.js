@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { supabase } = require('../lib/supabase');
 const { logger } = require('../lib/logger');
+const { decryptSecret } = require('../lib/crypto');
 
 /**
  * Normaliza URLs para garantir o protocolo http/https
@@ -44,7 +45,7 @@ async function renewClientInPanel({ userId, clientId, serverName }) {
 
   const panelUrl = normalizeUrl(service.panel_url);
   const panelUser = service.panel_username;
-  const panelPass = service.panel_password;
+  const panelPass = decryptSecret(service.panel_password);
 
   if (!panelUrl) {
     return {
