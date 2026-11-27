@@ -121,6 +121,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          panel_username: string | null
           phone: string
           plan: string | null
           server: string | null
@@ -135,6 +136,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          panel_username?: string | null
           phone: string
           plan?: string | null
           server?: string | null
@@ -149,6 +151,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          panel_username?: string | null
           phone?: string
           plan?: string | null
           server?: string | null

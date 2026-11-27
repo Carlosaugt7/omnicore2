@@ -174,7 +174,11 @@ export default function Clients() {
 
   const filtered = useMemo(() => {
     let result = clients.filter(c => {
-      const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search);
+      const q = search.toLowerCase();
+      const matchSearch =
+        c.name.toLowerCase().includes(q) ||
+        c.phone.includes(search) ||
+        (c.panel_username || '').toLowerCase().includes(q);
       const displayStatus = getDisplayStatus(c);
       const matchStatus = statusFilter === 'all' || displayStatus === statusFilter;
       const matchServer = serverFilter === 'all' || c.server === serverFilter;
@@ -201,6 +205,7 @@ export default function Clients() {
       name: fd.get('name') as string,
       phone: fd.get('phone') as string,
       email: (fd.get('email') as string) || null,
+      panel_username: ((fd.get('panel_username') as string) || '').trim() || null,
       server: formServer || null,
       plan: formPlan || null,
       value: formValue ? parseFloat(formValue) : null,
@@ -339,14 +344,6 @@ export default function Clients() {
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     queryClient.invalidateQueries({ queryKey: ['omnicore_metrics'] });
     loadClients();
-
-    // Se houver servidor vinculado com painel configurado, dispara automação do painel
-    if (client.server) {
-      const service = services.find(s => s.server_name === client.server);
-      if ((service as Record<string, unknown>)?.panel_url) {
-        handleAutomatedPanelRenew(client, service);
-      }
-    }
   };
 
   const handleSendWhatsApp = async (client: Client) => {
@@ -391,6 +388,7 @@ export default function Clients() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Nome *</Label><Input name="name" required defaultValue={editingClient?.name || ''} /></div>
                 <div className="space-y-2"><Label>Telefone *</Label><Input name="phone" required defaultValue={editingClient?.phone || ''} placeholder="5511999999999" /></div>
+                <div className="space-y-2"><Label>Usuário no Painel</Label><Input name="panel_username" defaultValue={editingClient?.panel_username || ''} placeholder="Login no servidor (ex: joao123)" /></div>
                 <div className="space-y-2"><Label>E-mail</Label><Input name="email" type="email" defaultValue={editingClient?.email || ''} /></div>
 
                 {/* Servidor — select com lista do catálogo */}
@@ -423,18 +421,6 @@ export default function Clients() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                {/* Valor — preenchido automaticamente, editável */}
-                <div className="space-y-2">
-                  <Label>Valor (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formValue}
-                    onChange={e => setFormValue(e.target.value)}
-                    placeholder="0.00"
-                  />
                 </div>
 
                 <div className="space-y-2"><Label>Vencimento</Label><Input name="due_date" type="date" defaultValue={editingClient?.due_date || ''} /></div>
