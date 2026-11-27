@@ -11,9 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, CheckCircle, Send, ArrowUpDown, ExternalLink, RefreshCw } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, CheckCircle, Send, ArrowUpDown, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { ServerBadge, buildServerColorMap } from '@/components/ServerBadge';
 import type { Database } from '@/integrations/supabase/types';
@@ -244,58 +244,32 @@ export default function Clients() {
     setDeleting(false);
   };
 
-  const handleAutomatedPanelRenew = async (client: Client, service?: Service) => {
-    if (!user) return;
-    const sName = service?.server_name || client.server;
-    if (!sName) {
-      toast.error('Cliente não possui servidor vinculado.');
-      return;
-    }
-    toast.info(`Iniciando renovação no painel ${sName}...`);
-    try {
-      const res = await api.panelRenew({
-        userId: user.id,
-        clientId: client.id,
-        serverName: sName,
-      });
-      if (res.success) {
-        toast.success(res.message || `Renovação automática concluída no painel ${sName}!`);
-        loadClients();
-        queryClient.invalidateQueries({ queryKey: ['clients'] });
-      } else {
-        toast.warning(res.error || `Não foi possível concluir no painel ${sName}. Verifique os dados de acesso.`);
-      }
-    } catch {
-      toast.error(`Falha ao conectar com serviço de automação de painéis.`);
-    }
-  };
-
   const handleMarkAsPaid = async (client: Client) => {
     if (!user) return;
 
-    // Regra (Opção A):
-    // Se vencido (< hoje), soma a duração do plano (padrão 30 dias) a partir de hoje.
-    // Se não vencido (>= hoje), soma a duração do plano ao vencimento atual.
+    // Regra de 30 dias:
+    // - Se o cliente antecipou (vencimento >= hoje): soma a duração do plano (30 dias) à data de vencimento atual.
+    // - Se for após o vencimento (vencimento < hoje): conta 30 dias a partir de hoje.
     const matchedPlan = plans.find(p => p.name === client.plan);
     const durationDays = matchedPlan?.duration_days || 30;
     const newDueDate = calculateNextDueDate(client.due_date, durationDays);
     const currentDue = client.due_date || newDueDate;
 
-    // Regra (Opção A) para transações:
-    // Verifica se já existe transação para este cliente e vencimento
-    const { data: existingList } = await supabase
-      .from('transactions')
-      .select('id, status')
-      .eq('client_id', client.id)
-      .eq('due_date', client.due_date || '')
-      .eq('user_id', user.id)
-      .limit(1);
-
-    const existing = existingList?.[0];
+    // Verifica se já existe transação para este cliente e vencimento (evitando erro se due_date for null)
+    let existing: { id: string; status: string | null } | undefined;
+    if (client.due_date) {
+      const { data: existingList } = await supabase
+        .from('transactions')
+        .select('id, status')
+        .eq('client_id', client.id)
+        .eq('due_date', client.due_date)
+        .eq('user_id', user.id)
+        .limit(1);
+      existing = existingList?.[0];
+    }
 
     if (existing) {
       if (existing.status !== 'pago') {
-        // Atualiza transação pendente existente para paga
         await supabase.from('transactions').update({
           status: 'pago',
           paid_at: new Date().toISOString(),
@@ -304,9 +278,7 @@ export default function Clients() {
           client_name: client.name,
         }).eq('id', existing.id);
       }
-      // Se já estava pago, não duplica a transação e não trava a renovação
     } else {
-      // Cria a transação de renovação
       const { error: tError } = await supabase.from('transactions').insert({
         client_id: client.id,
         client_name: client.name,
@@ -314,7 +286,7 @@ export default function Clients() {
         value: client.value,
         type: 'renovacao',
         status: 'pago',
-        due_date: client.due_date || currentDue,
+        due_date: currentDue,
         paid_at: new Date().toISOString(),
         description: `Renovação - ${client.name}`,
         user_id: user.id,
@@ -337,9 +309,10 @@ export default function Clients() {
       return;
     }
 
-    toast.success(`${client.name} renovado com sucesso! Novo vencimento: ${formatDateBR(newDueDate)}`);
-    
-    // Invalida cache do React Query e recarrega lista local
+    // Atualiza imediatamente na tela e invalida o cache global
+    setClients(prev => prev.map(c => c.id === client.id ? { ...c, due_date: newDueDate, status: 'ativo' } : c));
+    toast.success(`${client.name} marcado como pago! Plano renovado. Novo vencimento: ${formatDateBR(newDueDate)}`);
+
     queryClient.invalidateQueries({ queryKey: ['clients'] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     queryClient.invalidateQueries({ queryKey: ['omnicore_metrics'] });
@@ -507,20 +480,14 @@ export default function Clients() {
                         {(() => {
                           const srv = services.find(s => s.server_name === client.server);
                           const pUrl = (srv as Record<string, unknown>)?.panel_url as string | undefined;
+                          if (!pUrl) return null;
+                          const fullUrl = pUrl.startsWith('http://') || pUrl.startsWith('https://') ? pUrl : `https://${pUrl}`;
                           return (
-                            <>
-                              {pUrl && (
-                                <DropdownMenuItem onClick={() => window.open(pUrl, '_blank', 'noopener,noreferrer')}>
-                                  <ExternalLink className="h-4 w-4 mr-2 text-blue-600" />Acessar Painel
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem onClick={() => handleAutomatedPanelRenew(client, srv)}>
-                                <RefreshCw className="h-4 w-4 mr-2 text-amber-600" />Renovar no Painel Online
-                              </DropdownMenuItem>
-                            </>
+                            <DropdownMenuItem onClick={() => window.open(fullUrl, '_blank', 'noopener,noreferrer')}>
+                              <ExternalLink className="h-4 w-4 mr-2 text-blue-600" />Acessar Painel
+                            </DropdownMenuItem>
                           );
                         })()}
-                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => handleSendWhatsApp(client)}>
                           <Send className="h-4 w-4 mr-2" />Enviar WhatsApp
                         </DropdownMenuItem>

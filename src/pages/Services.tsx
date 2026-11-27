@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,25 +39,11 @@ export default function Services() {
     if (!user) return;
     setLoading(true);
     const fd = new FormData(e.currentTarget);
-    let rawPassword = (fd.get('panel_password') as string) || null;
-    if (rawPassword && !rawPassword.startsWith('enc:v1:')) {
-      try {
-        const encRes = await api.encryptPanelPassword(rawPassword);
-        if (encRes?.success && encRes.encrypted) {
-          rawPassword = encRes.encrypted;
-        }
-      } catch {
-        // Fallback silencioso caso o backend esteja indisponível no momento
-      }
-    }
-
     const payload = {
       server_name: fd.get('server_name') as string,
       plan_name: editing?.plan_name || null,
       value: editing?.value ?? null,
       panel_url: (fd.get('panel_url') as string) || null,
-      panel_username: (fd.get('panel_username') as string) || null,
-      panel_password: rawPassword,
       user_id: user.id,
     };
 
@@ -108,25 +93,6 @@ export default function Services() {
                     placeholder="https://painel.exemplo.com"
                     defaultValue={(editing as Record<string, unknown>)?.panel_url as string || ''}
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Login do Painel</Label>
-                    <Input
-                      name="panel_username"
-                      placeholder="seu_usuario"
-                      defaultValue={(editing as Record<string, unknown>)?.panel_username as string || ''}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Senha do Painel</Label>
-                    <Input
-                      name="panel_password"
-                      type="password"
-                      placeholder="••••••••"
-                      defaultValue={(editing as Record<string, unknown>)?.panel_password as string || ''}
-                    />
-                  </div>
                 </div>
               </div>
 
